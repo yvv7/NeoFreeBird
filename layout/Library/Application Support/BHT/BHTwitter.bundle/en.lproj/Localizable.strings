@@ -463,3 +463,20 @@
 /* Undo Duration Labels (Added for TweetsSettingsViewController) */
 "GENERIC_OFF_LABEL" = "Off";
 "SUBSCRIPTION_UNDO_SEND_DURATION_LABEL" = "%ld seconds";
+"COUNTRY_FILTER_TITLE" = "Country Filter";
+"COUNTRY_FILTER_DETAIL" = "Hide Home timeline posts from authors in selected countries or regions. Detection uses profile location, known accounts, post text and language.";
+"COUNTRY_FILTER_OPTION_TITLE" = "Choose countries & regions";
+"COUNTRY_FILTER_PROTECT_FOLLOWING_TITLE" = "Never filter accounts you follow";
+"COUNTRY_FILTER_PROTECT_FOLLOWING_DETAIL" = "Posts from accounts you follow always stay visible, even from filtered countries.";
+"COUNTRY_FILTER_SEARCH_PLACEHOLDER" = "Search countries";
+"COUNTRY_FILTER_REGIONS_HEADER" = "Regions";
+"COUNTRY_FILTER_COUNTRIES_HEADER" = "Countries";
+"COUNTRY_FILTER_COUNTRIES_FOOTER" = "Detection is best-effort: it uses the author's profile location, known accounts, post text and language. Confidence below the threshold means the post stays visible.";
+"COUNTRY_FILTER_EXCEPTIONS_HEADER" = "Exceptions";
+"COUNTRY_FILTER_EXCEPTIONS_TITLE" = "Username exceptions";
+"COUNTRY_FILTER_EXCEPTIONS_FOOTER" = "These accounts are never filtered, no matter the country.";
+"COUNTRY_FILTER_EXCEPTIONS_PROMPT" = "Usernames that are never filtered, separated by commas.";
+"COUNTRY_FILTER_SAVE" = "Save";
+"COUNTRY_FILTER_CANCEL" = "Cancel";
+"IMMERSIVE_DOWNLOAD_ALERT_TITLE" = "Download";
+"IMMERSIVE_DOWNLOAD_NO_VIDEO_MESSAGE" = "Couldn't find the playing video.";

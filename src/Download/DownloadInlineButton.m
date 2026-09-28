@@ -39,6 +39,7 @@ static UIViewController* TopMostController(void) {
 // call is still guarded by respondsToSelector:. (Declarations only, no
 // @implementation — these types are never instantiated.)
 @interface NFBStatusDuckType : NSObject
+- (id)author;
 - (id)user;
 - (NSDate*)createdAt;
 @end
@@ -182,15 +183,25 @@ static NSString* _Nullable FileBaseNameForStatus(id status) {
     NSString* screenName = nil;
     NSDate* createdAt = nil;
     @try {
-        if ([status respondsToSelector:@selector(user)]) {
-            NFBUserDuckType* user = [(NFBStatusDuckType*)status user];
-            if ([user respondsToSelector:@selector(screenName)])
-                screenName = [user screenName];
-        }
+        // TFSTwitterStatus exposes its author as `author`, not `user`;
+        // probing `user` alone silently misses and falls back to UUIDs.
+        id userObj = nil;
+        if ([status respondsToSelector:@selector(author)])
+            userObj = [(NFBStatusDuckType*)status author];
+        else if ([status respondsToSelector:@selector(user)])
+            userObj = [(NFBStatusDuckType*)status user];
+        if ([userObj respondsToSelector:@selector(screenName)])
+            screenName = [(NFBUserDuckType*)userObj screenName];
         if ([status respondsToSelector:@selector(createdAt)])
             createdAt = [(NFBStatusDuckType*)status createdAt];
     } @catch (NSException* __unused ex) {
     }
+    NSLog(@"[NFB] smart filename: status=%@ via=%@ screenName=%@ createdAt=%@",
+          NSStringFromClass([status class]),
+          [status respondsToSelector:@selector(author)]
+              ? @"author"
+              : ([status respondsToSelector:@selector(user)] ? @"user" : @"none"),
+          screenName, createdAt);
     if (![screenName isKindOfClass:NSString.class] || screenName.length == 0)
         return nil;
     NSCharacterSet* allowed = NSCharacterSet.alphanumericCharacterSet;
@@ -677,6 +688,40 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
             [self enqueueDownloadJobs:jobs];
         });
     });
+}
+
+// Direct download of one video URL, no media entities and no quality sheet.
+// Used by the immersive player's in-video download button: there we know
+// the exact rendition X is playing, but the player's "..." menu is built
+// outside _t1_actionItemsForStatus: so our "Download media" entry never
+// appears in it. Honors the sequential queue, tap-to-cancel, and
+// save-to-Files settings like every other download path. No status is
+// available here, so the file gets a UUID name (same as DMs).
+- (void)downloadVideoAtURL:(NSURL*)url {
+    if (![url isKindOfClass:NSURL.class] || url.absoluteString.length == 0) {
+        return;
+    }
+    // The job engine drives HUD UI: it must run on the main thread.
+    if (!NSThread.isMainThread) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self downloadVideoAtURL:url];
+        });
+        return;
+    }
+    self.fileNameCounter = 0;
+    self.fileNameBase = nil;
+    NSDictionary* job = @{
+        @"args": [NSString
+            stringWithFormat:@"-i \"%@\" -c copy", url.absoluteString],
+        @"ext": @"mp4",
+        @"durationMs": @0,
+        @"name": [self nextFileBaseName]
+    };
+    if ([BHTSettings boolForKey:@"download_queue"]) {
+        [self enqueueDownloadJobs:@[ job ]];
+    } else {
+        [self runSingleDownloadJob:job];
+    }
 }
 
 #pragma mark - Download job engine

@@ -100,7 +100,16 @@ static NSDictionary<NSString*, NSDictionary*>* BHTSettingsPages(void) {
                     @{@"key": @"hide_verified_tweets",
                       @"default": @NO},
                     @{@"key": @"restore_refresh_sounds",
-                      @"default": @YES}
+                      @"default": @YES},
+                    @{@"key": @"country_filter",
+                      @"default": @NO},
+                    @{@"type": @"button",
+                      @"parentKey": @"country_filter",
+                      @"titleKey": @"COUNTRY_FILTER_OPTION_TITLE",
+                      @"action": @"showCountryFilterViewController:"},
+                    @{@"key": @"country_filter_protect_following",
+                      @"default": @YES,
+                      @"parentKey": @"country_filter"}
                 ]
             },
             @"grok": @{

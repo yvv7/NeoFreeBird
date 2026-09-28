@@ -18,6 +18,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)presentDownloadOptionsForMediaEntities:(NSArray*)mediaEntities
                                          status:(id)status;
 
+// Direct single-URL download (used by the immersive player's in-video
+// download button, where we have the playing URL but no media entities).
+- (void)downloadVideoAtURL:(NSURL*)url;
+
 @end
 
 NS_ASSUME_NONNULL_END

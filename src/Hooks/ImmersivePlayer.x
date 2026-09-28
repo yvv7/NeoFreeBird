@@ -263,6 +263,21 @@ static TAVPlayer* immersivePagePlayer(UIView* pageView) {
     return playerIvar ? object_getIvar(pageView, playerIvar) : nil;
 }
 
+// The URL X is actually playing, for the in-video download button.
+// TAVPlayer is X's AVPlayer subclass; the current item's asset is the
+// rendition on screen. isKindOfClass-guarded: if X ever stops subclassing
+// AVPlayer this safely yields nil instead of crashing.
+static NSURL* _Nullable BHTImmersivePlayingURL(TAVPlayer* _Nullable player) {
+    if (!player || ![player isKindOfClass:[AVPlayer class]]) {
+        return nil;
+    }
+    AVAsset* asset = [(AVPlayer*)player currentItem].asset;
+    if ([asset isKindOfClass:[AVURLAsset class]]) {
+        return [(AVURLAsset*)asset URL];
+    }
+    return nil;
+}
+
 // timeControlStatus follows AVPlayer: 0 paused, 1 waiting to play, 2 playing.
 static void togglePlayback(TAVPlayer* player) {
     if (player.playbackState.timeControlStatus != 0) {
@@ -273,25 +288,135 @@ static void togglePlayback(TAVPlayer* player) {
 }
 
 static const void* kBHTTwoFingerTapKey = &kBHTTwoFingerTapKey;
+static const void* kBHTImmersiveDownloadButtonKey =
+    &kBHTImmersiveDownloadButtonKey;
 
 %hook _TtC14T1TwitterSwift17ImmersiveCardView
 
 - (void)didMoveToWindow {
     %orig;
 
-    if (!self.window || objc_getAssociatedObject(self, kBHTTwoFingerTapKey)) {
+    if (!self.window) {
         return;
     }
 
-    UITapGestureRecognizer* tap = [[UITapGestureRecognizer alloc]
-        initWithTarget:self
-                action:@selector(bht_handleTwoFingerTap:)];
-    tap.numberOfTouchesRequired = 2;
-    tap.numberOfTapsRequired = 1;
-    [self addGestureRecognizer:tap];
+    if (!objc_getAssociatedObject(self, kBHTTwoFingerTapKey)) {
+        UITapGestureRecognizer* tap = [[UITapGestureRecognizer alloc]
+            initWithTarget:self
+                    action:@selector(bht_handleTwoFingerTap:)];
+        tap.numberOfTouchesRequired = 2;
+        tap.numberOfTapsRequired = 1;
+        [self addGestureRecognizer:tap];
 
-    objc_setAssociatedObject(self, kBHTTwoFingerTapKey, tap,
+        objc_setAssociatedObject(self, kBHTTwoFingerTapKey, tap,
+                                 OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+
+    [self bht_maybeAddImmersiveDownloadButton];
+}
+
+// MARK: - In-video download button
+
+// X's immersive "..." menu is built outside _t1_actionItemsForStatus:, so
+// our "Download media" entry never appears in it and users land on X's own
+// broken native downloader instead. A download button on the card itself —
+// the approach shipped X tweaks use — gives the tweak a working entry point
+// inside the player. One button per card view; the tap handler resolves the
+// currently playing URL fresh each time, so recycled cards stay correct.
+%new
+- (void)bht_maybeAddImmersiveDownloadButton {
+    UIButton* existing =
+        objc_getAssociatedObject(self, kBHTImmersiveDownloadButtonKey);
+    if (existing) {
+        // X can add its chrome after us; stay on top.
+        [self bringSubviewToFront:existing];
+        return;
+    }
+    if (![BHTSettings boolForKey:@"download_videos"]) {
+        return;
+    }
+    UIButton* dlButton = [UIButton buttonWithType:UIButtonTypeCustom];
+    dlButton.translatesAutoresizingMaskIntoConstraints = NO;
+    dlButton.backgroundColor = [UIColor colorWithWhite:0 alpha:0.45];
+    dlButton.layer.cornerRadius = 22;
+    dlButton.tintColor = UIColor.whiteColor;
+    [dlButton setImage:[UIImage systemImageNamed:@"arrow.down.to.line"]
+              forState:UIControlStateNormal];
+    dlButton.accessibilityLabel = @"Download video";
+    [dlButton addTarget:self
+                 action:@selector(bht_downloadImmersiveVideo:)
+       forControlEvents:UIControlEventTouchUpInside];
+    [self addSubview:dlButton];
+    // Top-left, below the back chevron: clear of the right-side action rail
+    // and the bottom playback controls on every screen size.
+    [NSLayoutConstraint activateConstraints:@[
+        [dlButton.widthAnchor constraintEqualToConstant:44],
+        [dlButton.heightAnchor constraintEqualToConstant:44],
+        [dlButton.leadingAnchor
+            constraintEqualToAnchor:self.safeAreaLayoutGuide.leadingAnchor
+                           constant:12],
+        [dlButton.topAnchor
+            constraintEqualToAnchor:self.safeAreaLayoutGuide.topAnchor
+                           constant:60],
+    ]];
+    objc_setAssociatedObject(self, kBHTImmersiveDownloadButtonKey, dlButton,
                              OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
+%new
+- (void)bht_downloadImmersiveVideo:(UIButton*)sender {
+    if (![BHTSettings boolForKey:@"download_videos"]) {
+        return;
+    }
+    __block UIView* pageView = nil;
+    EnumerateSubviewsRecursively(self, ^(UIView* view) {
+        if (!pageView &&
+            [view isKindOfClass:%c(_TtC14T1TwitterSwift22ImmersiveVideoPageView)]) {
+            pageView = view;
+        }
+    });
+    TAVPlayer* player = pageView ? immersivePagePlayer(pageView) : nil;
+    NSURL* videoURL = BHTImmersivePlayingURL(player);
+    if (!videoURL) {
+        NSLog(@"[NFB] immersive download: no playable URL (pageView=%@ player=%@)",
+              pageView, player ? NSStringFromClass([player class]) : @"nil");
+        NSString* alertTitle = [[BHTBundle sharedBundle]
+            localizedStringForKey:@"IMMERSIVE_DOWNLOAD_ALERT_TITLE"];
+        if ([alertTitle isEqualToString:@"IMMERSIVE_DOWNLOAD_ALERT_TITLE"])
+            alertTitle = @"Download";
+        NSString* alertMessage = [[BHTBundle sharedBundle]
+            localizedStringForKey:@"IMMERSIVE_DOWNLOAD_NO_VIDEO_MESSAGE"];
+        if ([alertMessage
+                isEqualToString:@"IMMERSIVE_DOWNLOAD_NO_VIDEO_MESSAGE"])
+            alertMessage = @"Couldn't find the playing video.";
+        NSString* okLabel = [[BHTBundle sharedBundle]
+            localizedStringForKey:@"OK_ACTION_LABEL"];
+        if ([okLabel isEqualToString:@"OK_ACTION_LABEL"])
+            okLabel = @"OK";
+        UIAlertController* alert = [UIAlertController
+            alertControllerWithTitle:alertTitle
+                             message:alertMessage
+                      preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:okLabel
+                                                  style:UIAlertActionStyleCancel
+                                                handler:nil]];
+        UIViewController* host = self.window.rootViewController;
+        while (host.presentedViewController) {
+            host = host.presentedViewController;
+        }
+        [host presentViewController:alert animated:YES completion:nil];
+        return;
+    }
+    NSLog(@"[NFB] immersive download: %@", videoURL.absoluteString);
+    static char immersiveDownloaderKey;
+    DownloadInlineButton* downloader =
+        objc_getAssociatedObject(self, &immersiveDownloaderKey);
+    if (!downloader) {
+        downloader = [DownloadInlineButton new];
+        objc_setAssociatedObject(self, &immersiveDownloaderKey, downloader,
+                                 OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    [downloader downloadVideoAtURL:videoURL];
 }
 
 %new

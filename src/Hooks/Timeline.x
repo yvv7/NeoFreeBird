@@ -4,6 +4,7 @@
 //
 
 #import "HookHelpers.h"
+#import "Filter/CountryFilter.h"
 #import <string.h>
 
 // MARK: - Hide custom timelines
@@ -278,6 +279,14 @@ static BOOL ItemIsRetweetOfBlockingUser(id viewModel) {
 @property (nonatomic) BOOL hideVerified;
 @property (nonatomic) BOOL hideBlockedRetweets;
 
+// Country filter: snapshots of the hidden sets so a settings change busts
+// the verdict cache via -isEqualToContext:.
+@property (nonatomic) BOOL countryFilterEnabled;
+@property (nonatomic, copy) NSSet<NSString*>* hiddenCountries;
+@property (nonatomic, copy) NSSet<NSString*>* hiddenRegions;
+@property (nonatomic, copy) NSSet<NSString*>* exemptHandles;
+@property (nonatomic) BOOL protectFollowing;
+
 // Surfaces.
 @property (nonatomic) BOOL inConversation;
 @property (nonatomic) BOOL inProfile;
@@ -360,6 +369,15 @@ static BOOL ShouldHideTimelineItem(id item, BHTimelineFilterContext* context) {
     }
 
     if (context.hideBlockedRetweets && ItemIsRetweetOfBlockingUser(viewModel)) {
+        return YES;
+    }
+
+    if (context.countryFilterEnabled &&
+        [CountryFilter shouldHideViewModel:viewModel
+                           hiddenCountries:context.hiddenCountries
+                             hiddenRegions:context.hiddenRegions
+                             exemptHandles:context.exemptHandles
+                          protectFollowing:context.protectFollowing]) {
         return YES;
     }
 
@@ -506,6 +524,22 @@ static NSSet<NSNumber*>* ConversationAuthorRepliedToUserIDs(NSArray* sections,
                            !context.inProfile && !context.inSearch;
     context.hideBlockedRetweets = [BHTSettings boolForKey:@"hide_blocked_retweets"];
 
+    // Country filter runs on the Home timeline only, like the extension's
+    // For You scope. The Following tab is effectively untouched because
+    // protectFollowing exempts followed accounts by default.
+    BOOL inHomeTimeline = IsInHierarchyOfClass(
+        dataViewController, @"_TtC32TwitterHomeFeatureImplementation35HomeTimelineContainerViewController");
+    context.countryFilterEnabled =
+        [CountryFilter isEnabled] && inHomeTimeline && !context.inConversation &&
+        !context.inProfile && !context.inSearch;
+    if (context.countryFilterEnabled) {
+        [CountryFilter loadDataIfNeeded];
+        context.hiddenCountries = [CountryFilter hiddenCountries];
+        context.hiddenRegions = [CountryFilter hiddenRegions];
+        context.exemptHandles = [CountryFilter exemptHandles];
+        context.protectFollowing = [CountryFilter protectFollowing];
+    }
+
     return context;
 }
 
@@ -514,7 +548,7 @@ static NSSet<NSNumber*>* ConversationAuthorRepliedToUserIDs(NSArray* sections,
     // enough on its own; inConversation is, because related-tweet modules are
     // dropped in a conversation whatever the toggles say.
     return self.hideWhoToFollow || self.hidePrompts || self.hideVerified ||
-           self.hideBlockedRetweets || self.inConversation;
+           self.hideBlockedRetweets || self.inConversation || self.countryFilterEnabled;
 }
 
 - (void)resolveConversationLookupsInSections:(NSArray*)sections {
@@ -542,7 +576,15 @@ static NSSet<NSNumber*>* ConversationAuthorRepliedToUserIDs(NSArray* sections,
            self.conversationRootUserID == other.conversationRootUserID &&
            self.inEditHistory == other.inEditHistory &&
            (self.authorRepliedToUserIDs == other.authorRepliedToUserIDs ||
-            [self.authorRepliedToUserIDs isEqualToSet:other.authorRepliedToUserIDs]);
+            [self.authorRepliedToUserIDs isEqualToSet:other.authorRepliedToUserIDs]) &&
+           self.countryFilterEnabled == other.countryFilterEnabled &&
+           self.protectFollowing == other.protectFollowing &&
+           (self.hiddenCountries == other.hiddenCountries ||
+            [self.hiddenCountries isEqualToSet:other.hiddenCountries]) &&
+           (self.hiddenRegions == other.hiddenRegions ||
+            [self.hiddenRegions isEqualToSet:other.hiddenRegions]) &&
+           (self.exemptHandles == other.exemptHandles ||
+            [self.exemptHandles isEqualToSet:other.exemptHandles]);
 }
 
 @end
