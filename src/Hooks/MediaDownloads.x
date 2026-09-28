@@ -425,7 +425,8 @@ static void SetVoiceDownloadLongPressRecognizer(UIView* view,
         actionItemWithTitle:[[BHTBundle sharedBundle] localizedStringForKey:@"DOWNLOAD_VIDEOS_TITLE"]
                   imageName:@"arrow_down_circle_stroke"
                      action:^{
-                         [downloader presentDownloadOptionsForMediaEntities:mediaEntities];
+                         [downloader presentDownloadOptionsForMediaEntities:mediaEntities
+                                                                     status:status];
                      }];
 
     NSMutableArray* newItems = origItems ? [origItems mutableCopy] : [NSMutableArray array];

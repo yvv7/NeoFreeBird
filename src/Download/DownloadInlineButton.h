@@ -15,7 +15,8 @@ NS_ASSUME_NONNULL_BEGIN
 // inline action-bar button; now driven from the tweet overflow (3-dot) menu.
 @interface DownloadInlineButton : NSObject
 
-- (void)presentDownloadOptionsForMediaEntities:(NSArray*)mediaEntities;
+- (void)presentDownloadOptionsForMediaEntities:(NSArray*)mediaEntities
+                                         status:(id)status;
 
 @end
 

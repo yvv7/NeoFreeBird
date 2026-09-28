@@ -240,7 +240,22 @@
 "DOWNLOAD_ALL_TITLE" = "Download all (highest quality)";
 "DOWNLOAD_ALL_PROGRESS" = "Downloading %lu of %lu";
 "DOWNLOAD_ALL_FAILED_MESSAGE" = "%lu of %lu downloads failed.";
-"DOWNLOAD_ALL_NO_MP4" = "None of these videos offer a downloadable MP4.";
+"DOWNLOAD_ALL_NO_MP4" = "None of these videos could be downloaded.";
+
+"DOWNLOAD_TAP_TO_CANCEL_TITLE" = "Tap to cancel downloads";
+"DOWNLOAD_TAP_TO_CANCEL_DETAIL" = "Shows a cancel button while downloading; tapping it stops the current download.";
+"DOWNLOAD_AUDIO_OPTION_TITLE" = "Audio-only option";
+"DOWNLOAD_AUDIO_OPTION_DETAIL" = "Adds a “Download audio” item that saves just the audio track.";
+"DOWNLOAD_SMART_FILENAMES_TITLE" = "Smart filenames";
+"DOWNLOAD_SMART_FILENAMES_DETAIL" = "Names files @user_date instead of random names.";
+"DOWNLOAD_QUEUE_TITLE" = "Background download queue";
+"DOWNLOAD_QUEUE_DETAIL" = "Queues downloads to run one after another instead of blocking.";
+"DOWNLOAD_TO_FILES_TITLE" = "Save to Files app";
+"DOWNLOAD_TO_FILES_DETAIL" = "Sends finished downloads to the Files app instead of Photos or the share sheet.";
+"DOWNLOAD_AUDIO_MENU_TITLE" = "Download audio";
+"DOWNLOAD_CANCEL_BUTTON_TITLE" = "Cancel";
+"DOWNLOAD_QUEUE_PROGRESS" = "Downloading %lu of %lu";
+"DOWNLOAD_QUEUE_FAILED_MESSAGE" = "%lu of %lu queued downloads failed.";
 
 "HIDE_PREMIUM_OFFER_TITLE" = "No Twitter Blue prompts";
 "HIDE_PREMIUM_OFFER_DETAIL" = "Remove the 'Get Verified' and 'Upgrade' buttons.";

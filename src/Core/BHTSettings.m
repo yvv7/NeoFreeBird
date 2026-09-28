@@ -148,6 +148,36 @@ static NSDictionary<NSString*, NSDictionary*>* BHTSettingsPages(void) {
                       @"default": @NO,
                       @"type": @"toggle"},
                     @{
+                        @"key": @"download_tap_to_cancel",
+                        @"parentKey": @"download_videos",
+                        @"default": @YES,
+                        @"type": @"toggle"
+                    },
+                    @{
+                        @"key": @"download_audio_option",
+                        @"parentKey": @"download_videos",
+                        @"default": @YES,
+                        @"type": @"toggle"
+                    },
+                    @{
+                        @"key": @"download_smart_filenames",
+                        @"parentKey": @"download_videos",
+                        @"default": @YES,
+                        @"type": @"toggle"
+                    },
+                    @{
+                        @"key": @"download_queue",
+                        @"parentKey": @"download_videos",
+                        @"default": @YES,
+                        @"type": @"toggle"
+                    },
+                    @{
+                        @"key": @"download_to_files",
+                        @"parentKey": @"download_videos",
+                        @"default": @NO,
+                        @"type": @"toggle"
+                    },
+                    @{
                         @"key": @"disable_video_captions",
                         @"default": @NO,
                         @"type": @"toggle"
