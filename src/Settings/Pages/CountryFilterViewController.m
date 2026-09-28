@@ -66,7 +66,7 @@ static NSInteger const kCFSectionExceptions = 2;
     } else {
         NSString* lowered = [query lowercaseString];
         NSPredicate* p = [NSPredicate predicateWithBlock:^BOOL(NSDictionary* row,
-                                                              NSDictionary* _unused bindings) {
+                                                              __unused NSDictionary* bindings) {
             NSString* name = [row[@"name"] lowercaseString];
             NSString* code = [row[@"code"] lowercaseString];
             return [name containsString:lowered] || [code containsString:lowered];
@@ -200,11 +200,15 @@ static NSInteger const kCFSectionExceptions = 2;
         field.autocorrectionType = UITextAutocorrectionTypeNo;
     }];
     __weak typeof(self) weakSelf = self;
+    __weak typeof(alert) weakAlert = alert;
     [alert addAction:[UIAlertAction
                         actionWithTitle:[bundle localizedStringForKey:@"COUNTRY_FILTER_SAVE"]
                                   style:UIAlertActionStyleDefault
                                 handler:^(__unused UIAlertAction* _Nonnull action) {
-                                    [weakSelf saveExceptionsFromAlert:alert];
+                                    UIAlertController* strongAlert = weakAlert;
+                                    if (strongAlert) {
+                                        [weakSelf saveExceptionsFromAlert:strongAlert];
+                                    }
                                 }]];
     [alert addAction:[UIAlertAction
                         actionWithTitle:[bundle localizedStringForKey:@"COUNTRY_FILTER_CANCEL"]
