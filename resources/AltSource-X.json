@@ -1,0 +1,69 @@
+{
+  "name": "NeoFreeBird",
+  "subtitle": "A modified Twitter app with BHTwitter and other QoL modifications.",
+  "iconURL": "https://raw.githubusercontent.com/orionblur/NeoFreeBird/v7/resources/x_icon_rounded.png",
+  "headerURL": "https://pbs.twimg.com/profile_banners/1878595268255297537/1755453861/1500x500",
+  "website": "https://github.com/orionblur/NeoFreeBird",
+  "tintColor": "#000000",
+  "apps": [
+    {
+      "name": "X",
+      "bundleIdentifier": "com.atebits.Tweetie2",
+      "developerName": "actuallyaridan, nyaathea, timi2506, theacrat, orionblur",
+      "subtitle": "NeoFreeBird version 7.0.0",
+      "localizedDescription": "NeoFreeBird-BHTwitter",
+      "iconURL": "https://raw.githubusercontent.com/orionblur/NeoFreeBird/v7/resources/x_icon_rounded.png",
+      "tintColor": "#000000",
+      "category": "lifestyle",
+      "screenshots": [
+        "https://raw.githubusercontent.com/orionblur/NeoFreeBird/v7/resources/timeline/timeline1.png",
+        "https://raw.githubusercontent.com/orionblur/NeoFreeBird/v7/resources/timeline/timeline2.png",
+        "https://raw.githubusercontent.com/orionblur/NeoFreeBird/v7/resources/timeline/timeline3.png",
+        "https://raw.githubusercontent.com/orionblur/NeoFreeBird/v7/resources/timeline/timeline4.png",
+        "https://raw.githubusercontent.com/orionblur/NeoFreeBird/v7/resources/timeline/timeline5.png"
+      ],
+      "versions": [
+        {
+          "version": "12.28.1",
+          "buildVersion": "2",
+          "date": "2026-09-24T03:47:43Z",
+          "downloadURL": "https://github.com/orionblur/NeoFreeBird/releases/download/v7.0.0/orionblur-NFB-BHTwitter-sideloaded-X_7.0.0_12.28.1.ipa",
+          "size": 262096623,
+          "minOSVersion": "15.0",
+          "localizedDescription": "- Added option to hide Message button on tweets\n- Updated X to 12.28.1\n- Removed the “Try Grok Bot” button\n- Added new login flow"
+        }
+      ],
+      "appPermissions": {
+        "entitlements": [
+          "aps-environment",
+          "com.apple.developer.siri",
+          "com.apple.developer.applesignin",
+          "com.apple.developer.payment-pass-provisioning",
+          "com.apple.developer.usernotifications.communication",
+          "com.apple.developer.usernotifications.time-sensitive",
+          "com.apple.developer.pass-type-identifiers",
+          "com.apple.developer.devicecheck.appattest-environment",
+          "com.apple.developer.networking.carrier-constrained.app-optimized",
+          "keychain-access-groups",
+          "com.apple.security.application-groups",
+          "com.apple.developer.associated-appclip-app-identifiers",
+          "com.apple.developer.networking.carrier-constrained.appcategory",
+          "com.apple.developer.associated-domains"
+        ],
+        "privacy": {
+          "NSCalendarsUsageDescription": "Add events to your calendar from X.",
+          "NSCameraUsageDescription": "Capture and post photos and videos from X.",
+          "NSContactsUsageDescription": "We will securely upload your contacts to our servers to help you connect with friends and suggest users to follow on X.",
+          "NSFaceIDUsageDescription": "Use FaceID to authenticate on X.",
+          "NSLocationUsageDescription": "Enjoy the X experience tailored to your location.",
+          "NSLocationWhenInUseUsageDescription": "Enjoy the X experience tailored to your location.",
+          "NSMicrophoneUsageDescription": "Capture and post videos with sound from X.",
+          "NSPhotoLibraryAddUsageDescription": ">This lets you download photos and videos to your Photos.",
+          "NSPhotoLibraryUsageDescription": "Allow access to share photos from your camera roll.",
+          "NSSpeechRecognitionUsageDescription": "Going forward, whenever you choose to share captions on this device, Apple will provide the service. Doing so helps make sure people of all hearing abilities can access your content.",
+          "NSUserTrackingUsageDescription": "This helps X show you more relevant ads."
+        }
+      }
+    }
+  ]
+}
