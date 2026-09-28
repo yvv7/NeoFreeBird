@@ -5,6 +5,14 @@
 
 #import "HookHelpers.h"
 
+// Declaration-only: the implementations are added to the class by Logos
+// (%new) below. Without this, the compiler can't see the selectors for
+// direct calls like [self bht_maybeAddImmersiveDownloadButton].
+@interface _TtC14T1TwitterSwift17ImmersiveCardView (NFBImmersiveDownload)
+- (void)bht_maybeAddImmersiveDownloadButton;
+- (void)bht_downloadImmersiveVideo:(UIButton*)sender;
+@end
+
 // MARK: - Immersive Player Timestamp
 
 // Field indexes in ImmersiveCardState's declaration order.
