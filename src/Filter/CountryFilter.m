@@ -10,6 +10,7 @@
 
 #import "Filter/CountryFilter.h"
 #import "Core/BHTBundle.h"
+#import <objc/message.h>
 #import "Core/BHTSettings.h"
 #import <objc/runtime.h>
 
