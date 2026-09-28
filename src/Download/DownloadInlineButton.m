@@ -36,17 +36,14 @@ static UIViewController* TopMostController(void) {
 // FileBaseNameForStatus. The real classes aren't in our headers, and
 // messaging id with a wholly undeclared selector is a hard error, so the
 // compiler needs these signatures. Runtime behaviour is unchanged: every
-// call is still guarded by respondsToSelector:.
+// call is still guarded by respondsToSelector:. (Declarations only, no
+// @implementation — these types are never instantiated.)
 @interface NFBStatusDuckType : NSObject
 - (id)user;
 - (NSDate*)createdAt;
 @end
-@implementation NFBStatusDuckType
-@end
 @interface NFBUserDuckType : NSObject
 - (NSString*)screenName;
-@end
-@implementation NFBUserDuckType
 @end
 
 // Fetches a URL as text with a hard timeout. Must be called off the main

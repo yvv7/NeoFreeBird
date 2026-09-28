@@ -160,7 +160,8 @@ static NSArray* DMVideoEntities(UIView* attachmentView) {
                                              self.downloadHandler = [%c(DownloadInlineButton) new];
                                          }
                                          [self.downloadHandler
-                                             presentDownloadOptionsForMediaEntities:videoEntities];
+                                             presentDownloadOptionsForMediaEntities:videoEntities
+                                                                             status:nil];
                                      }];
                          return [UIMenu menuWithTitle:@"" children:@[saveAction]];
                      }];
