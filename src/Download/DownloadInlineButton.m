@@ -179,29 +179,68 @@ static double HLSDurationMs(NSURL* mediaPlaylistURL) {
 
 // Builds a "screenName_yyyyMMdd_HHmmss" base name from a tweet status, or nil
 // when the status doesn't expose the pieces. Backs smart filenames.
+static id _Nullable NFBFindUserObject(id status, NSString* _Nullable * _Nullable viaOut) {
+    // Fast paths: the known X API shapes.
+    if ([status respondsToSelector:@selector(author)]) {
+        id u = [(NFBStatusDuckType*)status author];
+        if ([u respondsToSelector:@selector(screenName)]) {
+            if (viaOut) *viaOut = @"author";
+            return u;
+        }
+    }
+    if ([status respondsToSelector:@selector(user)]) {
+        id u = [(NFBStatusDuckType*)status user];
+        if ([u respondsToSelector:@selector(screenName)]) {
+            if (viaOut) *viaOut = @"user";
+            return u;
+        }
+    }
+    // Fallback: scan the status's properties for one vending an object that
+    // answers screenName. Survives X renaming the user property.
+    @try {
+        unsigned int count = 0;
+        objc_property_t* props = class_copyPropertyList(object_getClass(status), &count);
+        for (unsigned int i = 0; i < count; i++) {
+            NSString* key =
+                [NSString stringWithUTF8String:property_getName(props[i])];
+            if ([key hasPrefix:@"_"] || [key hasPrefix:@"hash"]) {
+                continue;
+            }
+            id value = nil;
+            @try {
+                value = [status valueForKey:key];
+            } @catch (NSException* __unused ex) {
+                continue;
+            }
+            if (value && value != status &&
+                [value respondsToSelector:@selector(screenName)]) {
+                if (viaOut) *viaOut = key;
+                free(props);
+                return value;
+            }
+        }
+        free(props);
+    } @catch (NSException* __unused ex) {
+    }
+    return nil;
+}
+
 static NSString* _Nullable FileBaseNameForStatus(id status) {
     NSString* screenName = nil;
     NSDate* createdAt = nil;
+    NSString* via = @"none";
     @try {
-        // TFSTwitterStatus exposes its author as `author`, not `user`;
-        // probing `user` alone silently misses and falls back to UUIDs.
-        id userObj = nil;
-        if ([status respondsToSelector:@selector(author)])
-            userObj = [(NFBStatusDuckType*)status author];
-        else if ([status respondsToSelector:@selector(user)])
-            userObj = [(NFBStatusDuckType*)status user];
-        if ([userObj respondsToSelector:@selector(screenName)])
+        id userObj = NFBFindUserObject(status, &via);
+        if (userObj) {
             screenName = [(NFBUserDuckType*)userObj screenName];
+        }
         if ([status respondsToSelector:@selector(createdAt)])
             createdAt = [(NFBStatusDuckType*)status createdAt];
     } @catch (NSException* __unused ex) {
     }
     NSLog(@"[NFB] smart filename: status=%@ via=%@ screenName=%@ createdAt=%@",
-          NSStringFromClass([status class]),
-          [status respondsToSelector:@selector(author)]
-              ? @"author"
-              : ([status respondsToSelector:@selector(user)] ? @"user" : @"none"),
-          screenName, createdAt);
+          status ? NSStringFromClass([status class]) : @"nil", via, screenName,
+          createdAt);
     if (![screenName isKindOfClass:NSString.class] || screenName.length == 0)
         return nil;
     NSCharacterSet* allowed = NSCharacterSet.alphanumericCharacterSet;

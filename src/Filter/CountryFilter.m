@@ -22,6 +22,17 @@ static NSString* const kCFProtectFollowingKey = @"country_filter_protect_followi
 
 static const NSInteger kCFMinConfidence = 65;
 static const NSInteger kCFMinMargin = 20;
+// Strict mode: for users who want blocked countries gone aggressively.
+// Lower bar, smaller margin, and single-owner language alone can trigger.
+static const NSInteger kCFStrictMinConfidence = 35;
+static const NSInteger kCFStrictMinMargin = 10;
+static const NSInteger kCFStrictLangPoints = 35;
+
+static NSString* const kCFStrictKey = @"country_filter_strict";
+
+static BOOL CFStrictMode(void) {
+    return [BHTSettings boolForKey:kCFStrictKey];
+}
 
 // MARK: - Guarded messaging
 
@@ -318,7 +329,7 @@ static void CFAddEvidence(NSMutableDictionary<NSString*, NSMutableDictionary*>* 
         if (![base isEqualToString:@"en"]) {
             NSArray<NSString*>* owners = CFLangToCountries()[base];
             if (owners.count == 1) {
-                CFAddEvidence(scores, owners[0], 25);
+                CFAddEvidence(scores, owners[0], CFStrictMode() ? kCFStrictLangPoints : 25);
             }
         }
     }
@@ -337,13 +348,15 @@ static void CFAddEvidence(NSMutableDictionary<NSString*, NSMutableDictionary*>* 
     }
     NSString* top = ranked[0];
     NSInteger topScore = [scores[top][@"score"] integerValue];
-    if (topScore < kCFMinConfidence) {
+    NSInteger minConfidence = CFStrictMode() ? kCFStrictMinConfidence : kCFMinConfidence;
+    NSInteger minMargin = CFStrictMode() ? kCFStrictMinMargin : kCFMinMargin;
+    if (topScore < minConfidence) {
         return nil;
     }
     if (ranked.count > 1) {
         NSString* runnerUp = ranked[1];
         NSInteger runnerScore = [scores[runnerUp][@"score"] integerValue];
-        if (topScore - runnerScore < kCFMinMargin) {
+        if (topScore - runnerScore < minMargin) {
             return nil;
         }
     }
@@ -413,11 +426,16 @@ static BOOL CFViewModelAuthorIsFollowed(id viewModel) {
     if (!country) {
         return NO;
     }
-    if ([hiddenCountries containsObject:country]) {
-        return YES;
+    BOOL hide = [hiddenCountries containsObject:country];
+    NSString* region = hide ? nil : [self regionForCountry:country];
+    if (!hide && region) {
+        hide = [hiddenRegions containsObject:region];
     }
-    NSString* region = [self regionForCountry:country];
-    return region != nil && [hiddenRegions containsObject:region];
+    if (hide) {
+        NSLog(@"[NFB] country filter: hid @%@ (country=%@ region=%@)", handle,
+              country, region ?: @"-");
+    }
+    return hide;
 }
 
 // MARK: - Settings

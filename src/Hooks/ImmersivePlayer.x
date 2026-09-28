@@ -266,9 +266,46 @@ static BOOL isUpwardPan(UIGestureRecognizer *gesture) {
 
 // MARK: - Tap to Play/Pause
 
-static TAVPlayer* immersivePagePlayer(UIView* pageView) {
-    Ivar playerIvar = class_getInstanceVariable([pageView class], "player");
-    return playerIvar ? object_getIvar(pageView, playerIvar) : nil;
+static TAVPlayer* immersivePagePlayer(UIView* rootView) {
+    // Fast path: the known page-view class with a "player" ivar.
+    __block UIView* pageView = nil;
+    Class pageViewClass = %c(_TtC14T1TwitterSwift22ImmersiveVideoPageView);
+    if (pageViewClass) {
+        EnumerateSubviewsRecursively(rootView, ^(UIView* view) {
+            if (!pageView && [view isKindOfClass:pageViewClass]) {
+                pageView = view;
+            }
+        });
+    }
+    if (pageView) {
+        Ivar playerIvar = class_getInstanceVariable([pageView class], "player");
+        id player = playerIvar ? object_getIvar(pageView, playerIvar) : nil;
+        if ([player isKindOfClass:[AVPlayer class]]) {
+            return (TAVPlayer*)player;
+        }
+    }
+    // Fallback: scan every subview's ivars for any AVPlayer. Survives X
+    // renaming the page-view class or the ivar holding the player.
+    __block TAVPlayer* found = nil;
+    EnumerateSubviewsRecursively(rootView, ^(UIView* view) {
+        if (found) {
+            return;
+        }
+        unsigned int ivarCount = 0;
+        Ivar* ivars = class_copyIvarList([view class], &ivarCount);
+        for (unsigned int i = 0; i < ivarCount && !found; i++) {
+            const char* type = ivar_getTypeEncoding(ivars[i]);
+            if (!type || type[0] != '@') {
+                continue;
+            }
+            id value = object_getIvar(view, ivars[i]);
+            if ([value isKindOfClass:[AVPlayer class]]) {
+                found = (TAVPlayer*)value;
+            }
+        }
+        free(ivars);
+    });
+    return found;
 }
 
 // The URL X is actually playing, for the in-video download button.
@@ -279,9 +316,18 @@ static NSURL* _Nullable BHTImmersivePlayingURL(TAVPlayer* _Nullable player) {
     if (!player || ![player isKindOfClass:[AVPlayer class]]) {
         return nil;
     }
-    AVAsset* asset = [(AVPlayer*)player currentItem].asset;
+    AVPlayerItem* item = [(AVPlayer*)player currentItem];
+    AVAsset* asset = item.asset;
     if ([asset isKindOfClass:[AVURLAsset class]]) {
         return [(AVURLAsset*)asset URL];
+    }
+    // Fallback: some X builds wrap the asset in a subclass that still
+    // vends the URL. Duck-typed and guarded.
+    if ([asset respondsToSelector:@selector(URL)]) {
+        id url = [asset performSelector:@selector(URL)];
+        if ([url isKindOfClass:NSURL.class] && [(NSURL*)url absoluteString].length > 0) {
+            return (NSURL*)url;
+        }
     }
     return nil;
 }
@@ -376,18 +422,16 @@ static const void* kBHTImmersiveDownloadButtonKey =
     if (![BHTSettings boolForKey:@"download_videos"]) {
         return;
     }
-    __block UIView* pageView = nil;
-    EnumerateSubviewsRecursively(self, ^(UIView* view) {
-        if (!pageView &&
-            [view isKindOfClass:%c(_TtC14T1TwitterSwift22ImmersiveVideoPageView)]) {
-            pageView = view;
-        }
-    });
-    TAVPlayer* player = pageView ? immersivePagePlayer(pageView) : nil;
+    TAVPlayer* player = immersivePagePlayer(self);
     NSURL* videoURL = BHTImmersivePlayingURL(player);
     if (!videoURL) {
-        NSLog(@"[NFB] immersive download: no playable URL (pageView=%@ player=%@)",
-              pageView, player ? NSStringFromClass([player class]) : @"nil");
+        AVPlayerItem* item = [player isKindOfClass:[AVPlayer class]]
+                                 ? [(AVPlayer*)player currentItem]
+                                 : nil;
+        NSLog(@"[NFB] immersive download: no playable URL (player=%@ item=%@ asset=%@)",
+              player ? NSStringFromClass([player class]) : @"nil",
+              item ? NSStringFromClass([item class]) : @"nil",
+              item.asset ? NSStringFromClass([item.asset class]) : @"nil");
         NSString* alertTitle = [[BHTBundle sharedBundle]
             localizedStringForKey:@"IMMERSIVE_DOWNLOAD_ALERT_TITLE"];
         if ([alertTitle isEqualToString:@"IMMERSIVE_DOWNLOAD_ALERT_TITLE"])

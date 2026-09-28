@@ -468,6 +468,8 @@
 "COUNTRY_FILTER_OPTION_TITLE" = "Choose countries & regions";
 "COUNTRY_FILTER_PROTECT_FOLLOWING_TITLE" = "Never filter accounts you follow";
 "COUNTRY_FILTER_PROTECT_FOLLOWING_DETAIL" = "Posts from accounts you follow always stay visible, even from filtered countries.";
+"COUNTRY_FILTER_STRICT_TITLE" = "Strict detection";
+"COUNTRY_FILTER_STRICT_DETAIL" = "Hide posts on weaker signals too (single keyword, language alone). More filtering, more false positives.";
 "COUNTRY_FILTER_SEARCH_PLACEHOLDER" = "Search countries";
 "COUNTRY_FILTER_REGIONS_HEADER" = "Regions";
 "COUNTRY_FILTER_COUNTRIES_HEADER" = "Countries";

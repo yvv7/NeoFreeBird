@@ -524,11 +524,19 @@ static NSSet<NSNumber*>* ConversationAuthorRepliedToUserIDs(NSArray* sections,
                            !context.inProfile && !context.inSearch;
     context.hideBlockedRetweets = [BHTSettings boolForKey:@"hide_blocked_retweets"];
 
-    // Country filter runs on the Home timeline only, like the extension's
-    // For You scope. The Following tab is effectively untouched because
-    // protectFollowing exempts followed accounts by default.
-    BOOL inHomeTimeline = IsInHierarchyOfClass(
-        dataViewController, @"_TtC32TwitterHomeFeatureImplementation35HomeTimelineContainerViewController");
+    // Country filter runs on the Home timeline, like the extension's For You
+    // scope. The Following tab is effectively untouched because
+    // protectFollowing exempts followed accounts by default. The Swift class
+    // name is version-fragile: if X renamed it (NSClassFromString -> nil),
+    // fall back to "any timeline that isn't conversation/profile/search" so
+    // the filter doesn't silently never run.
+    Class homeTimelineClass = NSClassFromString(
+        @"_TtC32TwitterHomeFeatureImplementation35HomeTimelineContainerViewController");
+    BOOL inHomeTimeline =
+        homeTimelineClass
+            ? IsInHierarchyOfClass(dataViewController,
+                                   @"_TtC32TwitterHomeFeatureImplementation35HomeTimelineContainerViewController")
+            : YES;
     context.countryFilterEnabled =
         [CountryFilter isEnabled] && inHomeTimeline && !context.inConversation &&
         !context.inProfile && !context.inSearch;
@@ -538,6 +546,9 @@ static NSSet<NSNumber*>* ConversationAuthorRepliedToUserIDs(NSArray* sections,
         context.hiddenRegions = [CountryFilter hiddenRegions];
         context.exemptHandles = [CountryFilter exemptHandles];
         context.protectFollowing = [CountryFilter protectFollowing];
+        NSLog(@"[NFB] country filter: active (countries=%lu regions=%lu)",
+              (unsigned long)context.hiddenCountries.count,
+              (unsigned long)context.hiddenRegions.count);
     }
 
     return context;
