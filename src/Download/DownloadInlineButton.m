@@ -32,6 +32,23 @@ static UIViewController* TopMostController(void) {
     return top;
 }
 
+// Minimal declarations for the X model objects we duck-type in
+// FileBaseNameForStatus. The real classes aren't in our headers, and
+// messaging id with a wholly undeclared selector is a hard error, so the
+// compiler needs these signatures. Runtime behaviour is unchanged: every
+// call is still guarded by respondsToSelector:.
+@interface NFBStatusDuckType : NSObject
+- (id)user;
+- (NSDate*)createdAt;
+@end
+@implementation NFBStatusDuckType
+@end
+@interface NFBUserDuckType : NSObject
+- (NSString*)screenName;
+@end
+@implementation NFBUserDuckType
+@end
+
 // Fetches a URL as text with a hard timeout. Must be called off the main
 // thread; returns nil when the fetch fails or times out.
 static NSString* _Nullable HLSFetchText(NSURL* url, NSTimeInterval timeout) {
@@ -169,12 +186,12 @@ static NSString* _Nullable FileBaseNameForStatus(id status) {
     NSDate* createdAt = nil;
     @try {
         if ([status respondsToSelector:@selector(user)]) {
-            id user = [status user];
+            NFBUserDuckType* user = [(NFBStatusDuckType*)status user];
             if ([user respondsToSelector:@selector(screenName)])
                 screenName = [user screenName];
         }
         if ([status respondsToSelector:@selector(createdAt)])
-            createdAt = [status createdAt];
+            createdAt = [(NFBStatusDuckType*)status createdAt];
     } @catch (NSException* __unused ex) {
     }
     if (![screenName isKindOfClass:NSString.class] || screenName.length == 0)
