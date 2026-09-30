@@ -401,8 +401,31 @@
 }
 
 - (void)configureWithTitle:(NSString*)title subtitle:(NSString*)subtitle {
+    [self configureWithTitle:title subtitle:subtitle isEnabled:self.toggleSwitch.isOn];
+}
+
+- (void)configureWithTitle:(NSString*)title subtitle:(NSString*)subtitle isEnabled:(BOOL)isEnabled {
     self.titleLabel.text = title;
     self.subtitleLabel.text = subtitle;
+    self.toggleSwitch.onTintColor = [Palette currentAccentColor];
+    [self.toggleSwitch setOn:isEnabled animated:NO];
+}
+
+- (void)prepareForReuse {
+    [super prepareForReuse];
+    self.toggleSwitch.onTintColor = [Palette currentAccentColor];
+}
+
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    self.toggleSwitch.onTintColor = [Palette currentAccentColor];
+}
+
+- (void)didMoveToWindow {
+    [super didMoveToWindow];
+    if (self.window) {
+        self.toggleSwitch.onTintColor = [Palette currentAccentColor];
+    }
 }
 
 - (void)addTarget:(id)target action:(SEL)action forControlEvents:(UIControlEvents)events {
@@ -428,4 +451,5 @@
 }
 
 @end
+
 

@@ -377,11 +377,13 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
+    [UISwitch appearanceWhenContainedInInstancesOfClasses:@[[ModernSettingsToggleCell class]]].onTintColor = [Palette currentAccentColor];
     [self setupNavigationBar];
     [self setupTableView];
     [self setupSearchController];
     [self setupLayout];
     [self setupFooterLabel];
+
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(contentSizeCategoryDidChange:)
                                                  name:UIContentSizeCategoryDidChangeNotification
@@ -621,16 +623,15 @@
         if ([item[@"type"] isEqualToString:@"toggle"]) {
             ModernSettingsToggleCell* cell = [tableView dequeueReusableCellWithIdentifier:@"SearchToggleCell"
                                                                              forIndexPath:indexPath];
-            [cell configureWithTitle:item[@"title"] subtitle:item[@"subtitle"]];
             NSString* key = item[@"key"];
             BOOL isEnabled = [[[NSUserDefaults standardUserDefaults] objectForKey:key] ?: item[@"default"] boolValue];
-            cell.toggleSwitch.on = isEnabled;
-            cell.toggleSwitch.onTintColor = [Palette currentAccentColor];
+            [cell configureWithTitle:item[@"title"] subtitle:item[@"subtitle"] isEnabled:isEnabled];
             objc_setAssociatedObject(cell.toggleSwitch, @"searchPrefKey", key, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
             [cell.toggleSwitch removeTarget:self action:@selector(searchSwitchChanged:) forControlEvents:UIControlEventValueChanged];
             [cell.toggleSwitch addTarget:self action:@selector(searchSwitchChanged:) forControlEvents:UIControlEventValueChanged];
             return cell;
-        } else {
+        }
+ else {
             ModernSettingsTableViewCell* cell = [tableView dequeueReusableCellWithIdentifier:@"SettingsCell"
                                                                                 forIndexPath:indexPath];
             [cell configureWithTitle:item[@"title"]

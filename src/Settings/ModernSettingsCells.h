@@ -42,5 +42,7 @@
 @property (nonatomic, strong) UILabel* subtitleLabel;
 @property (nonatomic, strong) UISwitch* toggleSwitch;
 - (void)configureWithTitle:(NSString*)title subtitle:(NSString*)subtitle;
+- (void)configureWithTitle:(NSString*)title subtitle:(NSString*)subtitle isEnabled:(BOOL)isEnabled;
 - (void)addTarget:(id)target action:(SEL)action forControlEvents:(UIControlEvents)events;
 @end
+

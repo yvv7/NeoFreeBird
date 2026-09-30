@@ -11,15 +11,39 @@
 @property (nonatomic, strong) UILabel* titleLabel;
 @property (nonatomic, strong) UILabel* detailLabel;
 @property (nonatomic, strong) UIProgressView* bar;
+@property (nonatomic, assign) NSUInteger dismissGeneration;
 @end
+
+static NFBProgressPill* sCurrentActivePill = nil;
 
 @implementation NFBProgressPill
 
 + (instancetype)showWithTitle:(NSString*)title {
+    if (![NSThread isMainThread]) {
+        __block NFBProgressPill* result = nil;
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            result = [self showWithTitle:title];
+        });
+        return result;
+    }
+
+    if (sCurrentActivePill && sCurrentActivePill.pill && sCurrentActivePill.pill.superview) {
+        sCurrentActivePill.dismissGeneration++;
+        [sCurrentActivePill updateTitle:title];
+        [sCurrentActivePill setProgress:0 detail:@"0%"];
+        sCurrentActivePill.bar.hidden = NO;
+        sCurrentActivePill.detailLabel.hidden = NO;
+        [sCurrentActivePill.pill.superview bringSubviewToFront:sCurrentActivePill.pill];
+        [UIView animateWithDuration:0.25 animations:^{
+            sCurrentActivePill.pill.alpha = 1.0;
+            sCurrentActivePill.pill.transform = CGAffineTransformIdentity;
+        }];
+        return sCurrentActivePill;
+    }
+
     NFBProgressPill* pill = [[NFBProgressPill alloc] init];
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [pill setupWithTitle:title];
-    });
+    sCurrentActivePill = pill;
+    [pill setupWithTitle:title];
     return pill;
 }
 
@@ -38,8 +62,16 @@
         return;
     }
 
+    // Clean up any stale/orphaned pills with tag 88234
+    for (UIView* sub in window.subviews) {
+        if (sub.tag == 88234) {
+            [sub removeFromSuperview];
+        }
+    }
+
     UIBlurEffect* blurEffect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterialDark];
     UIVisualEffectView* container = [[UIVisualEffectView alloc] initWithEffect:blurEffect];
+    container.tag = 88234;
     container.layer.cornerRadius = 20;
     container.layer.masksToBounds = YES;
     container.layer.borderWidth = 0.5;
@@ -110,6 +142,20 @@
                      completion:nil];
 }
 
+- (void)updateTitle:(NSString*)title {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (!title || [self.titleLabel.text isEqualToString:title]) {
+            return;
+        }
+        [UIView transitionWithView:self.titleLabel
+                          duration:0.2
+                           options:UIViewAnimationOptionTransitionCrossDissolve
+                        animations:^{
+                            self.titleLabel.text = title;
+                        } completion:nil];
+    });
+}
+
 - (void)setProgress:(CGFloat)progress detail:(NSString* _Nullable)detail {
     dispatch_async(dispatch_get_main_queue(), ^{
         self.bar.progress = progress;
@@ -126,18 +172,31 @@
         UINotificationFeedbackGenerator* haptic = [[UINotificationFeedbackGenerator alloc] init];
         [haptic notificationOccurred:UINotificationFeedbackTypeSuccess];
 
-        self.titleLabel.text = [NSString stringWithFormat:@"✓ %@", message];
+        [UIView transitionWithView:self.titleLabel
+                          duration:0.2
+                           options:UIViewAnimationOptionTransitionCrossDissolve
+                        animations:^{
+                            self.titleLabel.text = [NSString stringWithFormat:@"✓ %@", message];
+                        } completion:nil];
         self.bar.hidden = YES;
         self.detailLabel.hidden = YES;
+
+        self.dismissGeneration++;
+        NSUInteger gen = self.dismissGeneration;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)),
                        dispatch_get_main_queue(), ^{
-                           [self dismiss];
+                           if (self.dismissGeneration == gen) {
+                               [self dismiss];
+                           }
                        });
     });
 }
 
 - (void)dismiss {
     dispatch_async(dispatch_get_main_queue(), ^{
+        if (sCurrentActivePill == self) {
+            sCurrentActivePill = nil;
+        }
         [UIView animateWithDuration:0.3
                               delay:0
              usingSpringWithDamping:0.9

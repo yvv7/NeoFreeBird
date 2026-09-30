@@ -37,9 +37,11 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
+    [UISwitch appearanceWhenContainedInInstancesOfClasses:@[[ModernSettingsToggleCell class]]].onTintColor = [Palette currentAccentColor];
     [self setupNav];
     [self setupTable];
 }
+
 
 #pragma mark - Page Registry
 
@@ -197,18 +199,16 @@
         NSString* key = toggleData[@"key"];
         NSString* title = [self localizedTitleForEntry:toggleData];
         NSString* subtitle = [self localizedDetailForKey:key];
-        [cell configureWithTitle:title subtitle:subtitle];
         BOOL isEnabled = [[[NSUserDefaults standardUserDefaults] objectForKey:key]
                               ?: toggleData[@"default"] boolValue];
-        cell.toggleSwitch.on = isEnabled;
-        cell.toggleSwitch.onTintColor = [Palette currentAccentColor];
+        [cell configureWithTitle:title subtitle:subtitle isEnabled:isEnabled];
         objc_setAssociatedObject(cell.toggleSwitch, @"prefKey", key, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         [cell addTarget:self
                       action:@selector(switchChanged:)
             forControlEvents:UIControlEventValueChanged];
         return cell;
-
     }
+
 }
 
 #pragma mark - UITableViewDelegate

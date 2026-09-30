@@ -284,19 +284,22 @@ static NSString* _Nullable FileBaseNameForStatus(id status) {
 #pragma mark - DownloadInlineButton
 @interface DownloadInlineButton ()
 @property (nonatomic, strong) TFNHUD* hud;
-@property (nonatomic, strong) FFmpegSession* currentSession;
-@property (nonatomic, strong) UIButton* cancelButton;
-@property (nonatomic, strong) NSMutableArray<NSDictionary*>* pendingJobs;
-@property (nonatomic, strong) NSMutableArray<NSDictionary*>* completedJobs;
-@property (nonatomic, strong) NSMutableArray<NSString*>* failureNotes;
-@property (nonatomic, assign) BOOL queueRunning;
-@property (nonatomic, assign) BOOL cancelRequested;
-@property (nonatomic, strong) NFBProgressPill* progressPill;
 @property (nonatomic, copy) NSString* fileNameBase;
 @property (nonatomic, assign) NSUInteger fileNameCounter;
 // Stashed base for async HLS resolution in downloadVideoAtURL:fileNameBase:.
 @property (nonatomic, copy) NSString* pendingFileNameBase;
 @end
+
+// Shared sequential download queue engine across all button instances.
+static NSMutableArray<NSDictionary*>* sPendingJobs = nil;
+static NSMutableArray<NSDictionary*>* sCompletedJobs = nil;
+static NSMutableArray<NSString*>* sFailureNotes = nil;
+static BOOL sQueueRunning = NO;
+static BOOL sCancelRequested = NO;
+static FFmpegSession* sCurrentSession = nil;
+static NFBProgressPill* sProgressPill = nil;
+static UIButton* sCancelButton = nil;
+static NSUInteger sTotalQueueCount = 0;
 
 @implementation DownloadInlineButton
 
@@ -979,11 +982,16 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
         stringWithFormat:@"-rw_timeout 15000000 %@ -y \"%@\"", args, outFile.path];
 
     // Always called on the main thread (menu actions and queue steps).
-    self.cancelRequested = NO;
+    sCancelRequested = NO;
     dispatch_async(dispatch_get_main_queue(), ^{
-        // Show progress pill at the top.
+        // Show or smoothly update progress pill at the top.
         NSString* title = progressText ?: @"Downloading";
-        self.progressPill = [NFBProgressPill showWithTitle:title];
+        if (sProgressPill) {
+            [sProgressPill updateTitle:title];
+            [sProgressPill setProgress:0 detail:@"0%"];
+        } else {
+            sProgressPill = [NFBProgressPill showWithTitle:title];
+        }
         // Keep the cancel button so users can abort.
         [self showCancelButton];
     });
@@ -996,7 +1004,7 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
             [FFmpegKit executeAsync:command
                 withCompleteCallback:^(FFmpegSession* s) {
                     ReturnCode* returnCode = [s getReturnCode];
-                    BOOL cancelled = self.cancelRequested ||
+                    BOOL cancelled = sCancelRequested ||
                                      [ReturnCode isCancel:returnCode];
                     if (![ReturnCode isSuccess:returnCode] && !cancelled &&
                         attempt < 2) {
@@ -1015,15 +1023,13 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
                         return;
                     }
                     runAttempt = nil;  // break the self-retain cycle
-                    self.currentSession = nil;
+                    sCurrentSession = nil;
                     dispatch_async(dispatch_get_main_queue(), ^{
                         [self.hud hide];
-                        [self hideCancelButton];
-                        // Dismiss the progress pill.
-                        NFBProgressPill* pill = self.progressPill;
-                        self.progressPill = nil;
-                        [pill dismiss];
                         if (cancelled) {
+                            [self hideCancelButton];
+                            [sProgressPill dismiss];
+                            sProgressPill = nil;
                             completion(nil, nil);
                         } else if ([ReturnCode isSuccess:returnCode]) {
                             completion(outFile, nil);
@@ -1061,12 +1067,12 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
                 } else {
                     return;
                 }
-                NFBProgressPill* pill = self.progressPill;
+                NFBProgressPill* pill = sProgressPill;
                 dispatch_async(dispatch_get_main_queue(), ^{
                     [pill setProgress:progress detail:detail];
                 });
             }];
-        self.currentSession = session;
+        sCurrentSession = session;
     };
     runAttempt();
 }
@@ -1074,6 +1080,11 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
 // Immediate single download (background queue disabled): one job, delivered
 // or alerted right away, like the old behaviour.
 - (void)runSingleDownloadJob:(NSDictionary*)job {
+    // If the shared queue is already running, route through queue to prevent collision.
+    if (sQueueRunning) {
+        [self enqueueDownloadJobs:@[ job ]];
+        return;
+    }
     NSString* downloadingText = [[BHTBundle sharedBundle]
         localizedStringForKey:@"DOWNLOAD_LIVE_ACTIVITY_DOWNLOADING"];
     if ([downloadingText isEqualToString:@"DOWNLOAD_LIVE_ACTIVITY_DOWNLOADING"])
@@ -1081,13 +1092,22 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
     [self runFFmpegJob:job
           progressText:downloadingText
             completion:^(NSURL* outFile, NSDictionary* failure) {
+                [self hideCancelButton];
                 UINotificationFeedbackGenerator* feedback =
                     [UINotificationFeedbackGenerator new];
                 [feedback prepare];
                 if (outFile) {
                     [feedback notificationOccurred:UINotificationFeedbackTypeSuccess];
+                    if (sProgressPill) {
+                        [sProgressPill dismissWithMessage:@"Saved"];
+                        sProgressPill = nil;
+                    }
                     [self deliverFile:outFile ext:job[@"ext"]];
                 } else if (failure) {
+                    if (sProgressPill) {
+                        [sProgressPill dismiss];
+                        sProgressPill = nil;
+                    }
                     [feedback notificationOccurred:UINotificationFeedbackTypeError];
                     NSString* failedFormat = [[BHTBundle sharedBundle]
                         localizedStringForKey:@"DOWNLOAD_FAILED_MESSAGE"];
@@ -1097,53 +1117,88 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
                               [NSString stringWithFormat:failedFormat, failure[@"rc"]]
                                                   command:failure[@"command"]
                                                 failTrace:failure[@"trace"]];
+                } else {
+                    if (sProgressPill) {
+                        [sProgressPill dismiss];
+                        sProgressPill = nil;
+                    }
                 }
-                // Cancelled: stay quiet.
             }];
 }
 
-// Queue entry point. Jobs run sequentially; the user can keep browsing while
-// they finish. Tapping an item again just adds to the queue.
+// Queue entry point. Jobs run sequentially in a shared engine across all tweets;
+// the user can keep browsing while they finish. Tapping an item again just adds to the queue.
 - (void)enqueueDownloadJobs:(NSArray<NSDictionary*>*)jobs {
     if (jobs.count == 0)
         return;
-    if (!self.pendingJobs)
-        self.pendingJobs = [NSMutableArray new];
-    [self.pendingJobs addObjectsFromArray:jobs];
-    [self processDownloadQueue];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (!sPendingJobs)
+            sPendingJobs = [NSMutableArray new];
+        [sPendingJobs addObjectsFromArray:jobs];
+        if (!sQueueRunning) {
+            sTotalQueueCount = sPendingJobs.count;
+            [self processDownloadQueue];
+        } else {
+            // Already running! Increment total queue count and update pill title immediately.
+            sTotalQueueCount += jobs.count;
+            NSUInteger doneCount = (sCompletedJobs.count + sFailureNotes.count);
+            NSUInteger currentNumber = doneCount + 1;
+            NSString* format = [[BHTBundle sharedBundle]
+                localizedStringForKey:@"DOWNLOAD_QUEUE_PROGRESS"];
+            if ([format isEqualToString:@"DOWNLOAD_QUEUE_PROGRESS"])
+                format = @"Downloading %lu of %lu";
+            NSString* progressText = [NSString stringWithFormat:format,
+                                      (unsigned long)currentNumber,
+                                      (unsigned long)sTotalQueueCount];
+            [sProgressPill updateTitle:progressText];
+        }
+    });
 }
 
 - (void)processDownloadQueue {
-    if (self.queueRunning)
+    if (sQueueRunning)
         return;
-    self.queueRunning = YES;
-    self.completedJobs = [NSMutableArray new];
-    self.failureNotes = [NSMutableArray new];
+    sQueueRunning = YES;
+    sCancelRequested = NO;
+    sCompletedJobs = [NSMutableArray new];
+    sFailureNotes = [NSMutableArray new];
     [self runNextQueuedJob];
 }
 
 - (void)runNextQueuedJob {
-    if (self.cancelRequested || self.pendingJobs.count == 0) {
+    if (sCancelRequested || sPendingJobs.count == 0) {
         [self finishDownloadQueue];
         return;
     }
-    NSDictionary* job = self.pendingJobs.firstObject;
-    [self.pendingJobs removeObjectAtIndex:0];
-    NSUInteger doneCount = self.completedJobs.count + self.failureNotes.count;
-    NSUInteger totalCount = doneCount + self.pendingJobs.count + 1;
-    NSString* format = [[BHTBundle sharedBundle]
-        localizedStringForKey:@"DOWNLOAD_QUEUE_PROGRESS"];
-    if ([format isEqualToString:@"DOWNLOAD_QUEUE_PROGRESS"])
-        format = @"Downloading %lu of %lu";
-    NSString* progressText =
-        [NSString stringWithFormat:format, (unsigned long)(doneCount + 1),
-                                    (unsigned long)totalCount];
+    NSDictionary* job = sPendingJobs.firstObject;
+    [sPendingJobs removeObjectAtIndex:0];
+    NSUInteger doneCount = sCompletedJobs.count + sFailureNotes.count;
+    NSUInteger totalCount = sTotalQueueCount;
+    if (totalCount < doneCount + sPendingJobs.count + 1) {
+        totalCount = doneCount + sPendingJobs.count + 1;
+        sTotalQueueCount = totalCount;
+    }
+    NSString* progressText = nil;
+    if (totalCount > 1) {
+        NSString* format = [[BHTBundle sharedBundle]
+            localizedStringForKey:@"DOWNLOAD_QUEUE_PROGRESS"];
+        if ([format isEqualToString:@"DOWNLOAD_QUEUE_PROGRESS"])
+            format = @"Downloading %lu of %lu";
+        progressText = [NSString stringWithFormat:format, (unsigned long)(doneCount + 1),
+                                                 (unsigned long)totalCount];
+    } else {
+        NSString* downloadingText = [[BHTBundle sharedBundle]
+            localizedStringForKey:@"DOWNLOAD_LIVE_ACTIVITY_DOWNLOADING"];
+        if ([downloadingText isEqualToString:@"DOWNLOAD_LIVE_ACTIVITY_DOWNLOADING"])
+            downloadingText = @"Downloading";
+        progressText = downloadingText;
+    }
     NSString* jobName = job[@"name"];
     [self runFFmpegJob:job
           progressText:progressText
             completion:^(NSURL* outFile, NSDictionary* failure) {
                 if (outFile) {
-                    [self.completedJobs
+                    [sCompletedJobs
                         addObject:@{@"url": outFile, @"ext": job[@"ext"] ?: @"mp4"}];
                 } else if (failure) {
                     // Keep the alert readable: tail of the trace, where the
@@ -1154,7 +1209,7 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
                         trace = [@"…\n"
                             stringByAppendingString:
                                 [trace substringFromIndex:trace.length - 800]];
-                    [self.failureNotes
+                    [sFailureNotes
                         addObject:[NSString stringWithFormat:@"%@ (rc=%@):\n%@",
                                                              jobName, failure[@"rc"],
                                                              trace]];
@@ -1164,27 +1219,46 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
 }
 
 - (void)finishDownloadQueue {
-    self.queueRunning = NO;
-    self.cancelRequested = NO;
+    sQueueRunning = NO;
+    sCancelRequested = NO;
+    [self hideCancelButton];
     UINotificationFeedbackGenerator* feedback =
         [UINotificationFeedbackGenerator new];
     [feedback prepare];
     // Deliver the successes first; the failure summary follows after a beat
     // so it lands on top of (not inside) any sheet/picker animation.
-    [self deliverFiles:self.completedJobs];
-    if (self.failureNotes.count > 0) {
+    NSArray* finishedItems = [sCompletedJobs copy];
+    NSArray* failures = [sFailureNotes copy];
+    sPendingJobs = nil;
+    sCompletedJobs = nil;
+    sFailureNotes = nil;
+    sTotalQueueCount = 0;
+
+    if (sProgressPill) {
+        if (finishedItems.count > 0 && failures.count == 0) {
+            NSString* msg = finishedItems.count == 1 ? @"Saved" :
+                [NSString stringWithFormat:@"%lu saved", (unsigned long)finishedItems.count];
+            [sProgressPill dismissWithMessage:msg];
+        } else {
+            [sProgressPill dismiss];
+        }
+        sProgressPill = nil;
+    }
+
+    [self deliverFiles:finishedItems];
+    if (failures.count > 0) {
         [feedback notificationOccurred:UINotificationFeedbackTypeError];
         NSString* failedFormat = [[BHTBundle sharedBundle]
             localizedStringForKey:@"DOWNLOAD_QUEUE_FAILED_MESSAGE"];
         if ([failedFormat isEqualToString:@"DOWNLOAD_QUEUE_FAILED_MESSAGE"])
             failedFormat = @"%lu of %lu queued downloads failed.";
-        NSUInteger total = self.completedJobs.count + self.failureNotes.count;
+        NSUInteger total = finishedItems.count + failures.count;
         NSString* message =
             [NSString stringWithFormat:failedFormat,
-                                      (unsigned long)self.failureNotes.count,
+                                      (unsigned long)failures.count,
                                       (unsigned long)total];
         NSString* trace =
-            [self.failureNotes componentsJoinedByString:@"\n\n"];
+            [failures componentsJoinedByString:@"\n\n"];
         dispatch_after(
             dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)),
             dispatch_get_main_queue(), ^{
@@ -1192,12 +1266,9 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
                                               command:@"queued downloads"
                                             failTrace:trace];
             });
-    } else if (self.completedJobs.count > 0) {
+    } else if (finishedItems.count > 0) {
         [feedback notificationOccurred:UINotificationFeedbackTypeSuccess];
     }
-    self.pendingJobs = nil;
-    self.completedJobs = nil;
-    self.failureNotes = nil;
 }
 
 #pragma mark - Delivery
@@ -1267,7 +1338,7 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
 // is our own floating pill. Tapping it cancels the in-flight ffmpeg session;
 // the job is then treated as cancelled (no retry, no error alert).
 - (void)showCancelButton {
-    if (self.cancelButton ||
+    if (sCancelButton ||
         ![BHTSettings boolForKey:@"download_tap_to_cancel"])
         return;
     UIButton* button = [UIButton buttonWithType:UIButtonTypeSystem];
@@ -1297,18 +1368,23 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
             constraintEqualToAnchor:window.safeAreaLayoutGuide.bottomAnchor
                            constant:-24]
     ]];
-    self.cancelButton = button;
+    sCancelButton = button;
 }
 
 - (void)hideCancelButton {
-    [self.cancelButton removeFromSuperview];
-    self.cancelButton = nil;
+    [sCancelButton removeFromSuperview];
+    sCancelButton = nil;
 }
 
 - (void)cancelCurrentDownload {
-    self.cancelRequested = YES;
+    sCancelRequested = YES;
     [self hideCancelButton];
-    [self.currentSession cancel];
+    [sCurrentSession cancel];
+    [sPendingJobs removeAllObjects];
+    if (sProgressPill) {
+        [sProgressPill dismiss];
+        sProgressPill = nil;
+    }
 }
 
 @end
