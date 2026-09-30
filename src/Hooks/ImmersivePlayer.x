@@ -328,6 +328,27 @@ static TAVPlayer* immersivePagePlayer(UIView* rootView) {
 // The URL X is actually playing, for the in-video download button.
 // TAVPlayer is an NSObject wrapper (not an AVPlayer subclass). It holds the
 // real AVPlayer internally. Find it via ivar introspection.
+static id _Nullable NFBGetIvarByName(id obj, const char* ivarName) {
+    if (!obj || !ivarName) {
+        return nil;
+    }
+    Class cls = [obj class];
+    for (int d = 0; d < 5 && cls; d++) {
+        unsigned int count = 0;
+        Ivar* ivars = class_copyIvarList(cls, &count);
+        for (unsigned int i = 0; i < count; i++) {
+            if (strcmp(ivar_getName(ivars[i]), ivarName) == 0) {
+                id value = object_getIvar(obj, ivars[i]);
+                free(ivars);
+                return value;
+            }
+        }
+        free(ivars);
+        cls = class_getSuperclass(cls);
+    }
+    return nil;
+}
+
 static AVPlayer* _Nullable BHTAVPlayerFromTAVPlayer(TAVPlayer* tavPlayer) {
     if (!tavPlayer) {
         return nil;
@@ -335,52 +356,74 @@ static AVPlayer* _Nullable BHTAVPlayerFromTAVPlayer(TAVPlayer* tavPlayer) {
     if ([tavPlayer isKindOfClass:[AVPlayer class]]) {
         return (AVPlayer*)tavPlayer;
     }
-    // Scan ivars for an AVPlayer (or AVQueuePlayer).
-    unsigned int ivarCount = 0;
-    Ivar* ivars = class_copyIvarList([tavPlayer class], &ivarCount);
+    // Deep chain (verified via Frida on-device):
+    // TAVPlayer -> _internalState -> _items[0] -> _tech -> _avPlayer
     AVPlayer* found = nil;
-    for (unsigned int i = 0; i < ivarCount && !found; i++) {
-        const char* type = ivar_getTypeEncoding(ivars[i]);
-        if (!type || type[0] != '@') {
-            continue;
+    @try {
+        id internalState = NFBGetIvarByName(tavPlayer, "_internalState");
+        id items = internalState ? NFBGetIvarByName(internalState, "_items") : nil;
+        id firstItem = ([items isKindOfClass:[NSArray class]] && [(NSArray*)items count] > 0)
+                           ? [(NSArray*)items objectAtIndex:0]
+                           : nil;
+        id tech = firstItem ? NFBGetIvarByName(firstItem, "_tech") : nil;
+        id avPlayer = tech ? NFBGetIvarByName(tech, "_avPlayer") : nil;
+        if ([avPlayer isKindOfClass:[AVPlayer class]]) {
+            found = (AVPlayer*)avPlayer;
+            NFBLog(@"immersive download: found AVPlayer via deep chain");
         }
-        id value = object_getIvar(tavPlayer, ivars[i]);
-        if ([value isKindOfClass:[AVPlayer class]]) {
-            found = (AVPlayer*)value;
-        }
+    } @catch (NSException* __unused ex) {
     }
-    free(ivars);
-    // Also check properties (Swift stored properties may only be properties).
-    // CRITICAL: only call properties that return objects (type encoding T@).
-    // Calling a struct/primitive property via performSelector corrupts the
-    // stack and crashes.
+    // Fallback: shallow ivar scan (old approach).
     if (!found) {
-        unsigned int propCount = 0;
-        objc_property_t* props = class_copyPropertyList([tavPlayer class], &propCount);
-        for (unsigned int i = 0; i < propCount && !found; i++) {
-            const char* attrs = property_getAttributes(props[i]);
-            // Attributes look like: T@"AVPlayer",&,N,V_player — must start with T@"
-            if (!attrs || attrs[0] != 'T' || attrs[1] != '@') {
+        unsigned int ivarCount = 0;
+        Ivar* ivars = class_copyIvarList([tavPlayer class], &ivarCount);
+        for (unsigned int i = 0; i < ivarCount && !found; i++) {
+            const char* type = ivar_getTypeEncoding(ivars[i]);
+            if (!type || type[0] != '@') {
                 continue;
             }
-            const char* name = property_getName(props[i]);
-            SEL sel = sel_registerName(name);
-            if ([tavPlayer respondsToSelector:sel]) {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-                id value = [tavPlayer performSelector:sel];
-#pragma clang diagnostic pop
-                if ([value isKindOfClass:[AVPlayer class]]) {
-                    found = (AVPlayer*)value;
-                }
+            id value = object_getIvar(tavPlayer, ivars[i]);
+            if ([value isKindOfClass:[AVPlayer class]]) {
+                found = (AVPlayer*)value;
             }
         }
-        free(props);
+        free(ivars);
     }
     NFBLog(@"immersive download: TAVPlayer=%@ internal AVPlayer=%@",
            NSStringFromClass([tavPlayer class]),
            found ? NSStringFromClass([found class]) : @"nil");
     return found;
+}
+
+// Fallback: walk the layer hierarchy for AVPlayerLayer, whose player is a
+// real AVPlayer. TAVPlayer wraps/controls playback but the actual rendering
+// goes through a player layer with the real item and URL.
+static NSURL* _Nullable BHTURLFromPlayerLayers(UIView* _Nullable rootView) {
+    if (!rootView) {
+        return nil;
+    }
+    NSMutableArray<CALayer*>* stack = [NSMutableArray arrayWithObject:rootView.layer];
+    while (stack.count > 0) {
+        CALayer* layer = stack.lastObject;
+        [stack removeLastObject];
+        if ([layer isKindOfClass:[AVPlayerLayer class]]) {
+            AVPlayer* avPlayer = [(AVPlayerLayer*)layer player];
+            AVPlayerItem* item = avPlayer.currentItem;
+            AVAsset* asset = item.asset;
+            if ([asset isKindOfClass:[AVURLAsset class]]) {
+                NSURL* url = [(AVURLAsset*)asset URL];
+                if (url) {
+                    NFBLog(@"immersive download: found URL via AVPlayerLayer: %@",
+                           url.absoluteString);
+                    return url;
+                }
+            }
+        }
+        for (CALayer* sub in layer.sublayers) {
+            [stack addObject:sub];
+        }
+    }
+    return nil;
 }
 
 static NSURL* _Nullable BHTImmersivePlayingURL(TAVPlayer* _Nullable player) {
@@ -524,6 +567,14 @@ static const void* kBHTImmersiveDownloadButtonKey =
     NFBLog(@"immersive download: scan done, player=%@",
            player ? NSStringFromClass([player class]) : @"nil");
     NSURL* videoURL = BHTImmersivePlayingURL(player);
+    // Fallback: the video renders through an AVPlayerLayer somewhere in
+    // the card's hierarchy. Its player is a real AVPlayer with the URL.
+    if (!videoURL) {
+        NFBLog(@"immersive download: trying AVPlayerLayer fallback...");
+        videoURL = BHTURLFromPlayerLayers(self);
+        NFBLog(@"immersive download: layer fallback url=%@",
+               videoURL.absoluteString ?: @"nil");
+    }
     NFBLog(@"immersive download: URL extraction done, url=%@",
            videoURL.absoluteString ?: @"nil");
     if (!videoURL) {
