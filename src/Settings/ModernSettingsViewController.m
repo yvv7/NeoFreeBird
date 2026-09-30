@@ -656,20 +656,37 @@
         }
     } else if (indexPath.section == 1) {
         NSDictionary* developer = self.developerCells[indexPath.row];
-        [self openTwitterProfileWithUserID:developer[@"userID"]];
+        [self openTwitterProfile:developer];
     } else if (indexPath.section == 2) {
         NSDictionary* developer = self.coolKidsCells[indexPath.row];
-        [self openTwitterProfileWithUserID:developer[@"userID"]];
+        [self openTwitterProfile:developer];
     } else if (indexPath.section == 3) {
         NSDictionary* developer = self.specialThanksCells[indexPath.row];
-        [self openTwitterProfileWithUserID:developer[@"userID"]];
+        [self openTwitterProfile:developer];
     } else if (indexPath.section == 4) {
         NSDictionary* developer = self.contributorCells[indexPath.row];
-        [self openTwitterProfileWithUserID:developer[@"userID"]];
+        [self openTwitterProfile:developer];
     } else if (indexPath.section == 5) {
         NSDictionary* developer = self.officialPageCells[indexPath.row];
         [self openTwitterProfileWithUserID:developer[@"userID"]];
     }
+}
+
+- (void)openTwitterProfile:(NSDictionary*)developer {
+    NSString* userID = developer[@"userID"];
+    NSString* username = developer[@"username"];
+    NSString* twitterURL = nil;
+    if (userID.length > 0) {
+        twitterURL = [NSString stringWithFormat:@"twitter://user?id=%@", userID];
+    } else if (username.length > 0) {
+        twitterURL = [NSString stringWithFormat:@"twitter://user?screen_name=%@", username];
+    }
+    if (!twitterURL) {
+        return;
+    }
+    [[UIApplication sharedApplication] openURL:[NSURL URLWithString:twitterURL]
+                                       options:@{}
+                             completionHandler:nil];
 }
 
 - (void)openTwitterProfileWithUserID:(NSString*)userID {
