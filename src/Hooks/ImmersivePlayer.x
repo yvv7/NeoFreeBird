@@ -495,11 +495,18 @@ static const void* kBHTImmersiveDownloadButtonKey =
 
 %new
 - (void)bht_downloadImmersiveVideo:(UIButton*)sender {
+    NFBLog(@"immersive download: button tapped");
     if (![BHTSettings boolForKey:@"download_videos"]) {
+        NFBLog(@"immersive download: download_videos disabled, aborting");
         return;
     }
+    NFBLog(@"immersive download: scanning for player...");
     TAVPlayer* player = immersivePagePlayer(self);
+    NFBLog(@"immersive download: scan done, player=%@",
+           player ? NSStringFromClass([player class]) : @"nil");
     NSURL* videoURL = BHTImmersivePlayingURL(player);
+    NFBLog(@"immersive download: URL extraction done, url=%@",
+           videoURL.absoluteString ?: @"nil");
     if (!videoURL) {
         AVPlayerItem* item = [player isKindOfClass:[AVPlayer class]]
                                  ? [(AVPlayer*)player currentItem]

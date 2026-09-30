@@ -8,7 +8,6 @@
 #import "Settings/Pages/DebugSettingsViewController.h"
 #import "Settings/Pages/DiagnosticsViewController.h"
 #import "Headers/TWHeaders.h"
-#import "Core/BHTBundle.h"
 
 @implementation DebugSettingsViewController
 
@@ -21,11 +20,8 @@
     // Append a "View Diagnostics" button row.
     NSDictionary* diagnosticsButton = @{
         @"type": @"button",
-        @"title": [[BHTBundle sharedBundle]
-            localizedStringForKey:@"DIAGNOSTICS_TITLE"] ?: @"Diagnostics",
-        @"subtitle": [[BHTBundle sharedBundle]
-            localizedStringForKey:@"DIAGNOSTICS_SUBTITLE"]
-            ?: @"View the tweak's diagnostic log",
+        @"titleKey": @"DIAGNOSTICS_TITLE",
+        @"subtitleDefaultKey": @"DIAGNOSTICS_SUBTITLE",
         @"action": @"showDiagnostics",
     };
     self.toggles = [self.toggles arrayByAddingObject:diagnosticsButton];
