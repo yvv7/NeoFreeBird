@@ -297,6 +297,12 @@
             @"avatarURL": @"https://unavatar.io/github/timi2506?fallback=https://neofreebird.com/images/"
                           @"timi2506.png",
             @"userID": @"1684856685486063616"
+        },
+        @{
+            @"title": @"cote",
+            @"username": @"255j",
+            @"avatarURL": @"https://unavatar.io/x/255j",
+            @"userID": @""
         }
     ];
 
