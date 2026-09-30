@@ -319,9 +319,8 @@ static NSString* _Nullable FileBaseNameForStatus(id status) {
                                   initWithAttributedString:titleString]
                  activeRanges:nil];
 
-        void (^showHUD)(NSString*) = ^(NSString* text) {
-            self.hud = [[objc_getClass("TFNHUD") alloc] initWithText:text];
-            [self.hud show];
+        void (^showHUD)(NSString*) = ^(NSString* __unused text) {
+            // Middle progress HUD disabled — pill confirmation only.
         };
         void (^dismissHUD)(void) = ^{
             [self.hud hide];
@@ -713,10 +712,7 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
     NSMutableArray<NSString*>* names = [NSMutableArray new];
     for (__unused TFSTwitterEntityMedia* media in videoEntities)
         [names addObject:[self nextFileBaseName]];
-    self.hud = [[objc_getClass("TFNHUD") alloc]
-        initWithText:[[BHTBundle sharedBundle]
-                         localizedStringForKey:@"FETCHING_PROGRESS_TITLE"]];
-    [self.hud show];
+    // Middle progress HUD disabled — pill confirmation only.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSMutableArray<NSDictionary*>* jobs = [NSMutableArray new];
         for (NSUInteger idx = 0; idx < videoEntities.count; idx++) {
@@ -983,8 +979,8 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
     // Always called on the main thread (menu actions and queue steps).
     self.cancelRequested = NO;
     dispatch_async(dispatch_get_main_queue(), ^{
-        self.hud = [[objc_getClass("TFNHUD") alloc] initWithText:progressText];
-        [self.hud show];
+        // Middle progress HUD disabled — pill confirmation only.
+        // Keep the cancel button so users can abort.
         [self showCancelButton];
     });
 

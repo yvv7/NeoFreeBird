@@ -457,13 +457,61 @@ static void SetVoiceDownloadLongPressRecognizer(UIView* view,
                                      }
                                  }
                              }
-                             if (photoURLs.count > 0) {
+                             if (photoURLs.count == 1) {
                                  NSString* base = nil;
                                  if ([BHTSettings boolForKey:@"download_smart_filenames"]) {
                                      base = [downloader fileBaseForStatus:status];
                                  }
                                  [downloader downloadImageURLs:photoURLs
                                                   fileNameBase:base];
+                             } else if (photoURLs.count > 1) {
+                                 // Multiple: ask which ones.
+                                 NSString* base = nil;
+                                 if ([BHTSettings boolForKey:@"download_smart_filenames"]) {
+                                     base = [downloader fileBaseForStatus:status];
+                                 }
+                                 UIAlertController* sheet = [UIAlertController
+                                     alertControllerWithTitle:@"Download"
+                                                      message:[NSString stringWithFormat:
+                                                                          @"%lu images",
+                                                                          (unsigned long)photoURLs.count]
+                                               preferredStyle:UIAlertControllerStyleActionSheet];
+                                 for (NSUInteger i = 0; i < photoURLs.count; i++) {
+                                     NSURL* url = photoURLs[i];
+                                     NSString* title =
+                                         [NSString stringWithFormat:@"Image %lu",
+                                                                   (unsigned long)(i + 1)];
+                                     [sheet addAction:[UIAlertAction
+                                         actionWithTitle:title
+                                                   style:UIAlertActionStyleDefault
+                                                 handler:^(__unused UIAlertAction* _Nonnull a) {
+                                                     [downloader downloadImageURLs:@[url]
+                                                                      fileNameBase:base];
+                                                 }]];
+                                 }
+                                 [sheet addAction:[UIAlertAction
+                                     actionWithTitle:[NSString stringWithFormat:
+                                                                 @"Download all %lu",
+                                                                 (unsigned long)photoURLs.count]
+                                               style:UIAlertActionStyleDefault
+                                             handler:^(__unused UIAlertAction* _Nonnull a) {
+                                                 [downloader downloadImageURLs:photoURLs
+                                                                  fileNameBase:base];
+                                             }]];
+                                 [sheet addAction:[UIAlertAction
+                                     actionWithTitle:@"Cancel"
+                                               style:UIAlertActionStyleCancel
+                                             handler:nil]];
+                                 UIViewController* host =
+                                     UIApplication.sharedApplication.keyWindow.rootViewController;
+                                 while (host.presentedViewController) {
+                                     host = host.presentedViewController;
+                                 }
+                                 sheet.popoverPresentationController.sourceView = host.view;
+                                 sheet.popoverPresentationController.sourceRect =
+                                     CGRectMake(host.view.bounds.size.width / 2,
+                                                host.view.bounds.size.height - 100, 1, 1);
+                                 [host presentViewController:sheet animated:YES completion:nil];
                              }
                          }
                      }];
