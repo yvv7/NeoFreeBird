@@ -22,6 +22,10 @@ NS_ASSUME_NONNULL_BEGIN
 // download button, where we have the playing URL but no media entities).
 - (void)downloadVideoAtURL:(NSURL*)url;
 
+// Same, with a smart filename base (e.g. "username_20250101_120000").
+// Pass nil for a random UUID filename.
+- (void)downloadVideoAtURL:(NSURL*)url fileNameBase:(NSString* _Nullable)base;
+
 @end
 
 NS_ASSUME_NONNULL_END

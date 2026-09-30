@@ -291,6 +291,8 @@ static NSString* _Nullable FileBaseNameForStatus(id status) {
 @property (nonatomic, assign) BOOL cancelRequested;
 @property (nonatomic, copy) NSString* fileNameBase;
 @property (nonatomic, assign) NSUInteger fileNameCounter;
+// Stashed base for async HLS resolution in downloadVideoAtURL:fileNameBase:.
+@property (nonatomic, copy) NSString* pendingFileNameBase;
 @end
 
 @implementation DownloadInlineButton
@@ -754,29 +756,53 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
 // save-to-Files settings like every other download path. No status is
 // available here, so the file gets a UUID name (same as DMs).
 - (void)downloadVideoAtURL:(NSURL*)url {
+    [self downloadVideoAtURL:url fileNameBase:nil];
+}
+
+- (void)downloadVideoAtURL:(NSURL*)url fileNameBase:(NSString* _Nullable)base {
     if (![url isKindOfClass:NSURL.class] || url.absoluteString.length == 0) {
         return;
     }
     // The job engine drives HUD UI: it must run on the main thread.
     if (!NSThread.isMainThread) {
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self downloadVideoAtURL:url];
+            [self downloadVideoAtURL:url fileNameBase:base];
         });
         return;
     }
+    // Stash the base; downloadResolvedVideoAtURL picks it up.
+    self.pendingFileNameBase = base;
+    // For HLS master playlists, resolve to the best variant URL first.
+    // Master playlists reference subtitles that break ffmpeg; variants don't.
+    if ([url.absoluteString.lowercaseString containsString:@".m3u8"]) {
+        NFBLog(@"immersive download: resolving HLS variants for %@",
+               url.absoluteString);
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            NSArray<NSDictionary*>* variants = HLSVariantStreams(url);
+            NSURL* bestURL = url;
+            if (variants.count > 0) {
+                // Already sorted best-first by resolution.
+                bestURL = variants[0][@"url"];
+                NFBLog(@"immersive download: best variant %@",
+                       bestURL.absoluteString);
+            }
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self downloadResolvedVideoAtURL:bestURL];
+            });
+        });
+        return;
+    }
+    [self downloadResolvedVideoAtURL:url];
+}
+
+- (void)downloadResolvedVideoAtURL:(NSURL*)url {
     self.fileNameCounter = 0;
-    self.fileNameBase = nil;
-    // HLS playlists (.m3u8) often include subtitle segments that ffmpeg
-    // fails to load. Map only video+audio to skip them.
-    BOOL isHLS = [url.absoluteString.lowercaseString containsString:@".m3u8"];
-    NSString* args = isHLS
-                         ? [NSString stringWithFormat:
-                                          @"-i \"%@\" -map 0:v:0 -map 0:a:0 -c copy",
-                                          url.absoluteString]
-                         : [NSString stringWithFormat:@"-i \"%@\" -c copy",
-                                                      url.absoluteString];
+    // Use the stashed base (from immersive) or nil for UUID.
+    self.fileNameBase = self.pendingFileNameBase;
+    self.pendingFileNameBase = nil;
     NSDictionary* job = @{
-        @"args": args,
+        @"args": [NSString stringWithFormat:@"-i \"%@\" -c copy",
+                                           url.absoluteString],
         @"ext": @"mp4",
         @"durationMs": @0,
         @"name": [self nextFileBaseName]

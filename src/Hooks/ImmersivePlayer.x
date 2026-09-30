@@ -395,6 +395,57 @@ static AVPlayer* _Nullable BHTAVPlayerFromTAVPlayer(TAVPlayer* tavPlayer) {
     return found;
 }
 
+// Smart filename for immersive: scan visible labels for @username.
+// Returns "username_yyyyMMdd_HHmmss" or nil if not found.
+static NSString* _Nullable BHTImmersiveFileBase(UIView* _Nullable rootView) {
+    if (!rootView) {
+        return nil;
+    }
+    NSString* foundHandle = nil;
+    NSMutableArray<UIView*>* stack = [NSMutableArray arrayWithObject:rootView];
+    while (stack.count > 0 && !foundHandle) {
+        UIView* view = stack.lastObject;
+        [stack removeLastObject];
+        if ([view isKindOfClass:[UILabel class]]) {
+            NSString* text = [(UILabel*)view text];
+            // Find @handle pattern.
+            NSRange atRange = [text rangeOfString:@"@"];
+            if (atRange.location != NSNotFound) {
+                NSString* after = [text substringFromIndex:atRange.location + 1];
+                // Handle is alphanumeric + underscore, up to whitespace.
+                NSCharacterSet* allowed = [NSCharacterSet
+                    characterSetWithCharactersInString:
+                        @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"];
+                NSMutableString* handle = [NSMutableString new];
+                for (NSUInteger i = 0; i < after.length; i++) {
+                    unichar c = [after characterAtIndex:i];
+                    if ([allowed characterIsMember:c]) {
+                        [handle appendFormat:@"%C", c];
+                    } else {
+                        break;
+                    }
+                }
+                if (handle.length > 0) {
+                    foundHandle = handle;
+                    break;
+                }
+            }
+        }
+        for (UIView* sub in view.subviews) {
+            [stack addObject:sub];
+        }
+    }
+    if (!foundHandle.length) {
+        return nil;
+    }
+    NSDateFormatter* formatter = [NSDateFormatter new];
+    formatter.dateFormat = @"yyyyMMdd_HHmmss";
+    NSString* datePart = [formatter stringFromDate:[NSDate date]];
+    NSString* base = [NSString stringWithFormat:@"%@_%@", foundHandle, datePart];
+    NFBLog(@"immersive download: smart filename base=%@", base);
+    return base;
+}
+
 // Fallback: walk the layer hierarchy for AVPlayerLayer, whose player is a
 // real AVPlayer. TAVPlayer wraps/controls playback but the actual rendering
 // goes through a player layer with the real item and URL.
@@ -621,7 +672,12 @@ static const void* kBHTImmersiveDownloadButtonKey =
         objc_setAssociatedObject(self, &immersiveDownloaderKey, downloader,
                                  OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
-    [downloader downloadVideoAtURL:videoURL];
+    // Smart filename: try to find @username in visible labels.
+    NSString* fileBase = nil;
+    if ([BHTSettings boolForKey:@"download_smart_filenames"]) {
+        fileBase = BHTImmersiveFileBase(self);
+    }
+    [downloader downloadVideoAtURL:videoURL fileNameBase:fileBase];
 }
 
 %new
