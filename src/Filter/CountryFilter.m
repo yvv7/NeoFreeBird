@@ -393,6 +393,13 @@ static BOOL CFViewModelAuthorIsFollowed(id viewModel) {
     NSString* handle = [[CFStringFor(user, @selector(screenName)) lowercaseString]
         stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
     if (handle.length == 0) {
+        // Log occasionally to diagnose why nothing is hidden (not every
+        // post, to avoid log spam — sample 1 in 50).
+        static NSUInteger emptyHandleCount = 0;
+        if ((emptyHandleCount++ % 50) == 0) {
+            NFBLog(@"country filter: empty handle for viewModel=%@",
+                   NSStringFromClass([viewModel class]));
+        }
         return NO;
     }
 
@@ -425,12 +432,26 @@ static BOOL CFViewModelAuthorIsFollowed(id viewModel) {
                                                 text:text
                                                 lang:lang];
     if (!country) {
+        // Sample log to diagnose detection failures.
+        static NSUInteger nilCountryCount = 0;
+        if ((nilCountryCount++ % 50) == 0) {
+            NFBLog(@"country filter: no country detected for @%@ (loc=%@)",
+                   handle, location ?: @"-");
+        }
         return NO;
     }
     BOOL hide = [hiddenCountries containsObject:country];
     NSString* region = hide ? nil : [self regionForCountry:country];
     if (!hide && region) {
         hide = [hiddenRegions containsObject:region];
+    }
+    // Sample log for detected but not hidden (region mismatch).
+    if (!hide) {
+        static NSUInteger notHiddenCount = 0;
+        if ((notHiddenCount++ % 50) == 0) {
+            NFBLog(@"country filter: @%@ -> %@ (%@) not hidden", handle, country,
+                   region ?: @"-");
+        }
     }
     if (hide) {
         NFBLog(@"country filter: hid @%@ (country=%@ region=%@)", handle,

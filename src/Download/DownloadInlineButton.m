@@ -267,10 +267,13 @@ static NSString* _Nullable FileBaseNameForStatus(id status) {
     if (clean.length == 0)
         return nil;
     NSString* datePart = @"";
-    if ([createdAt isKindOfClass:NSDate.class]) {
+    // Use the tweet's date if available, otherwise the current time.
+    // A filename without a date risks collisions, so always include one.
+    NSDate* dateToUse = [createdAt isKindOfClass:NSDate.class] ? createdAt : [NSDate date];
+    {
         NSDateFormatter* formatter = [NSDateFormatter new];
         formatter.dateFormat = @"yyyyMMdd_HHmmss";
-        datePart = [formatter stringFromDate:createdAt];
+        datePart = [formatter stringFromDate:dateToUse];
     }
     return datePart.length > 0 ? [NSString stringWithFormat:@"%@_%@", clean, datePart]
                                : [clean copy];
