@@ -283,11 +283,11 @@ static TAVPlayer* immersivePagePlayer(UIView* rootView) {
     }
     if (pageView) {
         // The ivar is "_player" (with underscore). Try both names.
-        for (const char* ivarName in {@"_player", "player"}) {
-            Ivar playerIvar = class_getInstanceVariable([pageView class], ivarName);
+        for (NSString* ivarName in @[@"_player", @"player"]) {
+            Ivar playerIvar = class_getInstanceVariable([pageView class], ivarName.UTF8String);
             id player = playerIvar ? object_getIvar(pageView, playerIvar) : nil;
             NFBLog(@"immersive scan: fast-path pageView=%@ ivar=%s player=%@",
-                   NSStringFromClass([pageView class]), ivarName,
+                   NSStringFromClass([pageView class]), ivarName.UTF8String,
                    player ? NSStringFromClass([player class]) : @"nil");
             if (player && ([player isKindOfClass:[TAVPlayer class]] ||
                            [player isKindOfClass:[AVPlayer class]])) {
