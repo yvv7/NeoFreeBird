@@ -814,6 +814,83 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
     }
 }
 
+// Save a UIImage to a temp file, then route through the normal delivery
+// (Photos / share sheet / Files) with a smart filename.
+- (void)downloadImage:(UIImage*)image fileNameBase:(NSString* _Nullable)base {
+    if (!image) {
+        return;
+    }
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        // JPEG at high quality; fall back to PNG if JPEG fails.
+        NSData* data = UIImageJPEGRepresentation(image, 0.92);
+        NSString* ext = @"jpg";
+        if (!data) {
+            data = UIImagePNGRepresentation(image);
+            ext = @"png";
+        }
+        if (!data) {
+            NFBLog(@"immersive download: failed to encode image");
+            return;
+        }
+        NSString* name = base.length ? base : NSUUID.UUID.UUIDString;
+        NSString* tmpPath =
+            [NSTemporaryDirectory() stringByAppendingPathComponent:
+                                       [name stringByAppendingPathExtension:ext]];
+        if (![data writeToFile:tmpPath atomically:YES]) {
+            NFBLog(@"immersive download: failed to write image file");
+            return;
+        }
+        NFBLog(@"immersive download: image saved to %@", tmpPath);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self deliverFile:[NSURL fileURLWithPath:tmpPath] ext:ext];
+        });
+    });
+}
+
+- (void)downloadImages:(NSArray<UIImage*>*)images
+         fileNameBase:(NSString* _Nullable)base {
+    if (images.count == 0) {
+        return;
+    }
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSMutableArray<NSString*>* paths = [NSMutableArray new];
+        for (NSUInteger i = 0; i < images.count; i++) {
+            UIImage* image = images[i];
+            NSData* data = UIImageJPEGRepresentation(image, 0.92);
+            NSString* ext = @"jpg";
+            if (!data) {
+                data = UIImagePNGRepresentation(image);
+                ext = @"png";
+            }
+            if (!data) {
+                continue;
+            }
+            NSString* name = base.length
+                                 ? [NSString stringWithFormat:@"%@_%lu", base,
+                                                            (unsigned long)(i + 1)]
+                                 : NSUUID.UUID.UUIDString;
+            NSString* tmpPath = [NSTemporaryDirectory()
+                stringByAppendingPathComponent:
+                    [name stringByAppendingPathExtension:ext]];
+            if ([data writeToFile:tmpPath atomically:YES]) {
+                [paths addObject:tmpPath];
+            }
+        }
+        NFBLog(@"immersive download: %lu images saved", (unsigned long)paths.count);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            NSMutableArray<NSDictionary*>* items = [NSMutableArray new];
+            for (NSString* path in paths) {
+                NSString* e = [path pathExtension] ?: @"jpg";
+                [items addObject:@{
+                    @"url": [NSURL fileURLWithPath:path],
+                    @"ext": e
+                }];
+            }
+            [self deliverFiles:items];
+        });
+    });
+}
+
 #pragma mark - Download job engine
 
 // Next output base name: smart "user_date" (with _2, _3… suffixes) when

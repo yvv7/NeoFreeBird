@@ -26,6 +26,10 @@ NS_ASSUME_NONNULL_BEGIN
 // Pass nil for a random UUID filename.
 - (void)downloadVideoAtURL:(NSURL*)url fileNameBase:(NSString* _Nullable)base;
 
+// Download a UIImage (from the immersive image viewer).
+- (void)downloadImage:(UIImage*)image fileNameBase:(NSString* _Nullable)base;
+- (void)downloadImages:(NSArray<UIImage*>*)images fileNameBase:(NSString* _Nullable)base;
+
 @end
 
 NS_ASSUME_NONNULL_END

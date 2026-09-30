@@ -12,6 +12,7 @@
 @interface _TtC14T1TwitterSwift17ImmersiveCardView (NFBImmersiveDownload)
 - (void)bht_maybeAddImmersiveDownloadButton;
 - (void)bht_downloadImmersiveVideo:(UIButton*)sender;
+- (void)bht_downloadImmersiveImages:(NSArray<UIImage*>*)images;
 @end
 
 // MARK: - Immersive Player Timestamp
@@ -395,6 +396,34 @@ static AVPlayer* _Nullable BHTAVPlayerFromTAVPlayer(TAVPlayer* tavPlayer) {
     return found;
 }
 
+// Scan the view hierarchy for UIImageViews with actual image content.
+// Filters out tiny icons and placeholders by minimum size.
+static NSArray<UIImage*>* BHTImmersiveImages(UIView* _Nullable rootView) {
+    NSMutableArray<UIImage*>* images = [NSMutableArray new];
+    if (!rootView) {
+        return images;
+    }
+    NSMutableArray<UIView*>* stack = [NSMutableArray arrayWithObject:rootView];
+    while (stack.count > 0) {
+        UIView* view = stack.lastObject;
+        [stack removeLastObject];
+        if ([view isKindOfClass:[UIImageView class]]) {
+            UIImage* img = [(UIImageView*)view image];
+            // Skip empty, tiny icons (like the download button itself).
+            if (img && img.size.width > 100 && img.size.height > 100) {
+                // Avoid duplicates (same image object in multiple views).
+                if (![images containsObject:img]) {
+                    [images addObject:img];
+                }
+            }
+        }
+        for (UIView* sub in view.subviews) {
+            [stack addObject:sub];
+        }
+    }
+    return images;
+}
+
 // Smart filename for immersive: scan visible labels for @username.
 // Returns "username_yyyyMMdd_HHmmss" or nil if not found.
 static NSString* _Nullable BHTImmersiveFileBase(UIView* _Nullable rootView) {
@@ -629,6 +658,14 @@ static const void* kBHTImmersiveDownloadButtonKey =
     NFBLog(@"immersive download: URL extraction done, url=%@",
            videoURL.absoluteString ?: @"nil");
     if (!videoURL) {
+        // No video — try images. Scan for UIImageViews with content.
+        NFBLog(@"immersive download: no video, scanning for images...");
+        NSArray<UIImage*>* images = BHTImmersiveImages(self);
+        NFBLog(@"immersive download: found %lu images", (unsigned long)images.count);
+        if (images.count > 0) {
+            [self bht_downloadImmersiveImages:images];
+            return;
+        }
         AVPlayerItem* item = [player isKindOfClass:[AVPlayer class]]
                                  ? [(AVPlayer*)player currentItem]
                                  : nil;
@@ -678,6 +715,74 @@ static const void* kBHTImmersiveDownloadButtonKey =
         fileBase = BHTImmersiveFileBase(self);
     }
     [downloader downloadVideoAtURL:videoURL fileNameBase:fileBase];
+}
+
+%new
+- (void)bht_downloadImmersiveImages:(NSArray<UIImage*>*)images {
+    if (images.count == 0) {
+        return;
+    }
+    // Smart filename base.
+    NSString* fileBase = nil;
+    if ([BHTSettings boolForKey:@"download_smart_filenames"]) {
+        fileBase = BHTImmersiveFileBase(self);
+    }
+    if (!fileBase) {
+        NSDateFormatter* formatter = [NSDateFormatter new];
+        formatter.dateFormat = @"yyyyMMdd_HHmmss";
+        fileBase = [formatter stringFromDate:[NSDate date]];
+    }
+
+    static char immersiveDownloaderKey;
+    DownloadInlineButton* downloader =
+        objc_getAssociatedObject(self, &immersiveDownloaderKey);
+    if (!downloader) {
+        downloader = [DownloadInlineButton new];
+        objc_setAssociatedObject(self, &immersiveDownloaderKey, downloader,
+                                 OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+
+    if (images.count == 1) {
+        NFBLog(@"immersive download: downloading 1 image");
+        [downloader downloadImage:images[0] fileNameBase:fileBase];
+        return;
+    }
+
+    // Multiple images: offer "this one" vs "all".
+    NFBLog(@"immersive download: %lu images, showing picker",
+           (unsigned long)images.count);
+    UIAlertController* sheet = [UIAlertController
+        alertControllerWithTitle:@"Download"
+                         message:[NSString stringWithFormat:@"%lu images",
+                                                           (unsigned long)images.count]
+                  preferredStyle:UIAlertControllerStyleActionSheet];
+    [sheet addAction:[UIAlertAction
+                         actionWithTitle:@"Download this one"
+                                   style:UIAlertActionStyleDefault
+                                 handler:^(__unused UIAlertAction* _Nonnull action) {
+                                     // The currently visible image is the first
+                                     // large one found; download it.
+                                     [downloader downloadImage:images[0]
+                                                  fileNameBase:fileBase];
+                                 }]];
+    [sheet addAction:[UIAlertAction
+                         actionWithTitle:@"Download all"
+                                   style:UIAlertActionStyleDefault
+                                 handler:^(__unused UIAlertAction* _Nonnull action) {
+                                     [downloader downloadImages:images
+                                                  fileNameBase:fileBase];
+                                 }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:@"Cancel"
+                                              style:UIAlertActionStyleCancel
+                                            handler:nil]];
+    UIViewController* host = self.window.rootViewController;
+    while (host.presentedViewController) {
+        host = host.presentedViewController;
+    }
+    // iPad popover anchor.
+    sheet.popoverPresentationController.sourceView = self;
+    sheet.popoverPresentationController.sourceRect = self.bounds;
+    [host presentViewController:sheet animated:YES completion:nil];
 }
 
 %new
