@@ -766,9 +766,17 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
     }
     self.fileNameCounter = 0;
     self.fileNameBase = nil;
+    // HLS playlists (.m3u8) often include subtitle segments that ffmpeg
+    // fails to load. Map only video+audio to skip them.
+    BOOL isHLS = [url.absoluteString.lowercaseString containsString:@".m3u8"];
+    NSString* args = isHLS
+                         ? [NSString stringWithFormat:
+                                          @"-i \"%@\" -map 0:v:0 -map 0:a:0 -c copy",
+                                          url.absoluteString]
+                         : [NSString stringWithFormat:@"-i \"%@\" -c copy",
+                                                      url.absoluteString];
     NSDictionary* job = @{
-        @"args": [NSString
-            stringWithFormat:@"-i \"%@\" -c copy", url.absoluteString],
+        @"args": args,
         @"ext": @"mp4",
         @"durationMs": @0,
         @"name": [self nextFileBaseName]
