@@ -289,7 +289,7 @@ static TAVPlayer* immersivePagePlayer(UIView* rootView) {
             NFBLog(@"immersive scan: fast-path pageView=%@ ivar=%s player=%@",
                    NSStringFromClass([pageView class]), ivarName.UTF8String,
                    player ? NSStringFromClass([player class]) : @"nil");
-            if (player && ([player isKindOfClass:[TAVPlayer class]] ||
+            if (player && ([player isKindOfClass:objc_getClass("TAVPlayer")] ||
                            [player isKindOfClass:[AVPlayer class]])) {
                 return (TAVPlayer*)player;
             }
@@ -312,7 +312,7 @@ static TAVPlayer* immersivePagePlayer(UIView* rootView) {
                 continue;
             }
             id value = object_getIvar(view, ivars[i]);
-            if ([value isKindOfClass:[TAVPlayer class]] ||
+            if ([value isKindOfClass:objc_getClass("TAVPlayer")] ||
                 [value isKindOfClass:[AVPlayer class]]) {
                 found = (TAVPlayer*)value;
             }
