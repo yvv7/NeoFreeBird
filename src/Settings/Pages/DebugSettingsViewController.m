@@ -22,7 +22,7 @@
         @"type": @"button",
         @"titleKey": @"DIAGNOSTICS_TITLE",
         @"subtitleDefaultKey": @"DIAGNOSTICS_SUBTITLE",
-        @"action": @"showDiagnostics",
+        @"action": @"showDiagnostics:",
     };
     self.toggles = [self.toggles arrayByAddingObject:diagnosticsButton];
     [self updateVisibleToggles];
