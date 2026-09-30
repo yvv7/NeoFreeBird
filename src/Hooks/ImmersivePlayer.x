@@ -458,6 +458,75 @@ static UIImage* _Nullable BHTImmersiveVisibleImage(UIView* _Nullable rootView) {
     return bestImage;
 }
 
+// Visible area of the video player view: finds the view hosting the
+// AVPlayerLayer and measures its intersection with the window. Used to
+// decide whether the user is looking at the video or a picture when a
+// tweet has both.
+static CGFloat BHTImmersiveVideoVisibleArea(UIView* _Nullable rootView) {
+    if (!rootView || !rootView.window) {
+        return 0;
+    }
+    CGRect windowBounds = rootView.window.bounds;
+    CGFloat bestArea = 0;
+    NSMutableArray<UIView*>* stack = [NSMutableArray arrayWithObject:rootView];
+    while (stack.count > 0) {
+        UIView* view = stack.lastObject;
+        [stack removeLastObject];
+        CALayer* layer = view.layer;
+        BOOL hasPlayerLayer = [layer isKindOfClass:[AVPlayerLayer class]];
+        if (!hasPlayerLayer) {
+            for (CALayer* sub in layer.sublayers) {
+                if ([sub isKindOfClass:[AVPlayerLayer class]]) {
+                    hasPlayerLayer = YES;
+                    break;
+                }
+            }
+        }
+        if (hasPlayerLayer) {
+            CGRect frameInWindow = [view convertRect:view.bounds toView:nil];
+            CGRect visible = CGRectIntersection(frameInWindow, windowBounds);
+            CGFloat area = visible.size.width * visible.size.height;
+            if (area > bestArea) {
+                bestArea = area;
+            }
+        }
+        for (UIView* sub in view.subviews) {
+            [stack addObject:sub];
+        }
+    }
+    return bestArea;
+}
+
+// Visible area of the largest image. Returns 0 if no suitable image.
+static CGFloat BHTImmersiveImageVisibleArea(UIView* _Nullable rootView) {
+    if (!rootView || !rootView.window) {
+        return 0;
+    }
+    CGRect windowBounds = rootView.window.bounds;
+    CGFloat bestArea = 0;
+    NSMutableArray<UIView*>* stack = [NSMutableArray arrayWithObject:rootView];
+    while (stack.count > 0) {
+        UIView* view = stack.lastObject;
+        [stack removeLastObject];
+        if ([view isKindOfClass:[UIImageView class]]) {
+            UIImage* img = [(UIImageView*)view image];
+            if (img && img.size.width > 100 && img.size.height > 100) {
+                CGRect frameInWindow =
+                    [view convertRect:view.bounds toView:nil];
+                CGRect visible = CGRectIntersection(frameInWindow, windowBounds);
+                CGFloat area = visible.size.width * visible.size.height;
+                if (area > bestArea) {
+                    bestArea = area;
+                }
+            }
+        }
+        for (UIView* sub in view.subviews) {
+            [stack addObject:sub];
+        }
+    }
+    return bestArea;
+}
+
 // Smart filename for immersive: scan visible labels for @username.
 // Returns "username_yyyyMMdd_HHmmss" or nil if not found.
 static NSString* _Nullable BHTImmersiveFileBase(UIView* _Nullable rootView) {
@@ -691,6 +760,24 @@ static const void* kBHTImmersiveDownloadButtonKey =
     }
     NFBLog(@"immersive download: URL extraction done, url=%@",
            videoURL.absoluteString ?: @"nil");
+    // Mixed media (video + picture): download what's actually visible.
+    // Compare the visible area of the video player vs the largest image.
+    if (videoURL) {
+        CGFloat videoArea = BHTImmersiveVideoVisibleArea(self);
+        CGFloat imageArea = BHTImmersiveImageVisibleArea(self);
+        NFBLog(@"immersive download: videoArea=%.0f imageArea=%.0f",
+               videoArea, imageArea);
+        // If the image is substantially more visible than the video,
+        // the user is looking at the picture — download it instead.
+        if (imageArea > videoArea * 1.5 && imageArea > 10000) {
+            NFBLog(@"immersive download: image is visible, downloading image");
+            NSArray<UIImage*>* images = BHTImmersiveImages(self);
+            if (images.count > 0) {
+                [self bht_downloadImmersiveImages:images];
+                return;
+            }
+        }
+    }
     if (!videoURL) {
         // No video — try images. Scan for UIImageViews with content.
         NFBLog(@"immersive download: no video, scanning for images...");
