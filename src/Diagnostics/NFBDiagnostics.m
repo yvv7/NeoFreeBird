@@ -26,12 +26,10 @@ void NFBLog(NSString* format, ...) {
     va_end(args);
 
     // Timestamp for the in-app viewer (NSLog already timestamps itself).
-    static NSDateFormatter* formatter = nil;
-    static dispatch_once_t formatterOnce;
-    dispatch_once(&formatterOnce, ^{
-        formatter = [[NSDateFormatter alloc] init];
-        formatter.dateFormat = @"HH:mm:ss";
-    });
+    // NSDateFormatter is NOT thread-safe: create one per call. NFBLog can
+    // be called from any thread (ffmpeg callbacks, etc.).
+    NSDateFormatter* formatter = [[NSDateFormatter alloc] init];
+    formatter.dateFormat = @"HH:mm:ss";
     NSString* timestamped =
         [NSString stringWithFormat:@"[%@] %@", [formatter stringFromDate:[NSDate date]], message];
 

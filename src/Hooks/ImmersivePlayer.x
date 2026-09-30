@@ -326,9 +326,6 @@ static TAVPlayer* immersivePagePlayer(UIView* rootView) {
 }
 
 // The URL X is actually playing, for the in-video download button.
-// TAVPlayer is X's AVPlayer subclass; the current item's asset is the
-// rendition on screen. isKindOfClass-guarded: if X ever stops subclassing
-// AVPlayer this safely yields nil instead of crashing.
 // TAVPlayer is an NSObject wrapper (not an AVPlayer subclass). It holds the
 // real AVPlayer internally. Find it via ivar introspection.
 static AVPlayer* _Nullable BHTAVPlayerFromTAVPlayer(TAVPlayer* tavPlayer) {
@@ -354,10 +351,18 @@ static AVPlayer* _Nullable BHTAVPlayerFromTAVPlayer(TAVPlayer* tavPlayer) {
     }
     free(ivars);
     // Also check properties (Swift stored properties may only be properties).
+    // CRITICAL: only call properties that return objects (type encoding T@).
+    // Calling a struct/primitive property via performSelector corrupts the
+    // stack and crashes.
     if (!found) {
         unsigned int propCount = 0;
         objc_property_t* props = class_copyPropertyList([tavPlayer class], &propCount);
         for (unsigned int i = 0; i < propCount && !found; i++) {
+            const char* attrs = property_getAttributes(props[i]);
+            // Attributes look like: T@"AVPlayer",&,N,V_player — must start with T@"
+            if (!attrs || attrs[0] != 'T' || attrs[1] != '@') {
+                continue;
+            }
             const char* name = property_getName(props[i]);
             SEL sel = sel_registerName(name);
             if ([tavPlayer respondsToSelector:sel]) {
