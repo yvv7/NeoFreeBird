@@ -12,6 +12,7 @@
 #import "Core/BHTBundle.h"
 #import "Core/BHTSettings.h"
 #import "Core/NFBToast.h"
+#import "Core/NFBProgressPill.h"
 
 #pragma mark - Helpers
 static UIWindow* KeyWindow(void) {
@@ -290,6 +291,7 @@ static NSString* _Nullable FileBaseNameForStatus(id status) {
 @property (nonatomic, strong) NSMutableArray<NSString*>* failureNotes;
 @property (nonatomic, assign) BOOL queueRunning;
 @property (nonatomic, assign) BOOL cancelRequested;
+@property (nonatomic, strong) NFBProgressPill* progressPill;
 @property (nonatomic, copy) NSString* fileNameBase;
 @property (nonatomic, assign) NSUInteger fileNameCounter;
 // Stashed base for async HLS resolution in downloadVideoAtURL:fileNameBase:.
@@ -979,7 +981,9 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
     // Always called on the main thread (menu actions and queue steps).
     self.cancelRequested = NO;
     dispatch_async(dispatch_get_main_queue(), ^{
-        // Middle progress HUD disabled — pill confirmation only.
+        // Show progress pill at the top.
+        NSString* title = progressText ?: @"Downloading";
+        self.progressPill = [NFBProgressPill showWithTitle:title];
         // Keep the cancel button so users can abort.
         [self showCancelButton];
     });
@@ -1015,6 +1019,10 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
                     dispatch_async(dispatch_get_main_queue(), ^{
                         [self.hud hide];
                         [self hideCancelButton];
+                        // Dismiss the progress pill.
+                        NFBProgressPill* pill = self.progressPill;
+                        self.progressPill = nil;
+                        [pill dismiss];
                         if (cancelled) {
                             completion(nil, nil);
                         } else if ([ReturnCode isSuccess:returnCode]) {
@@ -1039,21 +1047,23 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
                 }
                 withLogCallback:nil
             withStatisticsCallback:^(Statistics* statistics) {
-                NSString* detail;
+                CGFloat progress = 0;
+                NSString* detail = nil;
                 if (durationMs > 0) {
-                    detail = [BHTManager
-                        getDownloadingPercent:MIN([statistics getTime] / durationMs,
-                                                  1.0)];
+                    progress = MIN([statistics getTime] / durationMs, 1.0);
+                    detail = [BHTManager getDownloadingPercent:progress];
                 } else if ([statistics getSize] > 0) {
                     detail = [NSByteCountFormatter
                         stringFromByteCount:[statistics getSize]
                                  countStyle:NSByteCountFormatterCountStyleFile];
+                    // No duration: fake progress based on size (cap at 90%).
+                    progress = MIN([statistics getSize] / 10000000.0, 0.9);
                 } else {
                     return;
                 }
+                NFBProgressPill* pill = self.progressPill;
                 dispatch_async(dispatch_get_main_queue(), ^{
-                    [self.hud setText:[NSString stringWithFormat:@"%@ %@", progressText,
-                                                                   detail]];
+                    [pill setProgress:progress detail:detail];
                 });
             }];
         self.currentSession = session;
