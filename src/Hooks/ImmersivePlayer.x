@@ -424,6 +424,40 @@ static NSArray<UIImage*>* BHTImmersiveImages(UIView* _Nullable rootView) {
     return images;
 }
 
+// Find the currently visible image: the UIImageView with the largest
+// intersection with the window bounds (the one the user is looking at).
+static UIImage* _Nullable BHTImmersiveVisibleImage(UIView* _Nullable rootView) {
+    if (!rootView || !rootView.window) {
+        return nil;
+    }
+    CGRect windowBounds = rootView.window.bounds;
+    UIImage* bestImage = nil;
+    CGFloat bestArea = 0;
+    NSMutableArray<UIView*>* stack = [NSMutableArray arrayWithObject:rootView];
+    while (stack.count > 0) {
+        UIView* view = stack.lastObject;
+        [stack removeLastObject];
+        if ([view isKindOfClass:[UIImageView class]]) {
+            UIImage* img = [(UIImageView*)view image];
+            if (img && img.size.width > 100 && img.size.height > 100) {
+                // Convert to window coordinates and intersect.
+                CGRect frameInWindow =
+                    [view convertRect:view.bounds toView:nil];
+                CGRect visible = CGRectIntersection(frameInWindow, windowBounds);
+                CGFloat area = visible.size.width * visible.size.height;
+                if (area > bestArea) {
+                    bestArea = area;
+                    bestImage = img;
+                }
+            }
+        }
+        for (UIView* sub in view.subviews) {
+            [stack addObject:sub];
+        }
+    }
+    return bestImage;
+}
+
 // Smart filename for immersive: scan visible labels for @username.
 // Returns "username_yyyyMMdd_HHmmss" or nil if not found.
 static NSString* _Nullable BHTImmersiveFileBase(UIView* _Nullable rootView) {
@@ -760,9 +794,13 @@ static const void* kBHTImmersiveDownloadButtonKey =
                          actionWithTitle:@"Download this one"
                                    style:UIAlertActionStyleDefault
                                  handler:^(__unused UIAlertAction* _Nonnull action) {
-                                     // The currently visible image is the first
-                                     // large one found; download it.
-                                     [downloader downloadImage:images[0]
+                                     // Find the actually visible image (not just the first).
+                                     UIImage* visible = BHTImmersiveVisibleImage(self);
+                                     if (!visible) {
+                                         visible = images[0];
+                                     }
+                                     NFBLog(@"immersive download: downloading visible image");
+                                     [downloader downloadImage:visible
                                                   fileNameBase:fileBase];
                                  }]];
     [sheet addAction:[UIAlertAction
