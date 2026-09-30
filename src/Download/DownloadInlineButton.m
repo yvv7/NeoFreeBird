@@ -42,6 +42,7 @@ static UIViewController* TopMostController(void) {
 @interface NFBStatusDuckType : NSObject
 - (id)author;
 - (id)user;
+- (NSString*)fromUserName;
 - (NSDate*)createdAt;
 @end
 @interface NFBUserDuckType : NSObject
@@ -231,9 +232,21 @@ static NSString* _Nullable FileBaseNameForStatus(id status) {
     NSDate* createdAt = nil;
     NSString* via = @"none";
     @try {
-        id userObj = NFBFindUserObject(status, &via);
-        if (userObj) {
-            screenName = [(NFBUserDuckType*)userObj screenName];
+        // Fast path: TFNTwitterStatus has fromUserName as a direct string.
+        // Check this BEFORE looking for a user object.
+        if ([status respondsToSelector:@selector(fromUserName)]) {
+            id name = [(NFBStatusDuckType*)status fromUserName];
+            if ([name isKindOfClass:NSString.class] && [(NSString*)name length] > 0) {
+                screenName = (NSString*)name;
+                via = @"fromUserName";
+            }
+        }
+        // Fallback: find a user object with screenName.
+        if (!screenName) {
+            id userObj = NFBFindUserObject(status, &via);
+            if (userObj) {
+                screenName = [(NFBUserDuckType*)userObj screenName];
+            }
         }
         if ([status respondsToSelector:@selector(createdAt)])
             createdAt = [(NFBStatusDuckType*)status createdAt];

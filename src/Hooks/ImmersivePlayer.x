@@ -387,12 +387,31 @@ static NSURL* _Nullable BHTImmersivePlayingURL(TAVPlayer* _Nullable player) {
     if (!player) {
         return nil;
     }
-    AVPlayer* avPlayer = BHTAVPlayerFromTAVPlayer(player);
-    if (!avPlayer) {
-        NFBLog(@"immersive download: no AVPlayer inside TAVPlayer");
+    AVPlayerItem* item = nil;
+    // Try 1: TAVPlayer might forward currentItem directly.
+    if ([player respondsToSelector:@selector(currentItem)]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        id currentItem = [player performSelector:@selector(currentItem)];
+#pragma clang diagnostic pop
+        if ([currentItem isKindOfClass:[AVPlayerItem class]]) {
+            item = (AVPlayerItem*)currentItem;
+            NFBLog(@"immersive download: got currentItem via TAVPlayer.currentItem");
+        }
+    }
+    // Try 2: Extract the internal AVPlayer via introspection.
+    if (!item) {
+        AVPlayer* avPlayer = BHTAVPlayerFromTAVPlayer(player);
+        if (!avPlayer) {
+            NFBLog(@"immersive download: no AVPlayer inside TAVPlayer and no currentItem");
+            return nil;
+        }
+        item = avPlayer.currentItem;
+    }
+    if (!item) {
+        NFBLog(@"immersive download: no current item");
         return nil;
     }
-    AVPlayerItem* item = avPlayer.currentItem;
     AVAsset* asset = item.asset;
     if ([asset isKindOfClass:[AVURLAsset class]]) {
         return [(AVURLAsset*)asset URL];
