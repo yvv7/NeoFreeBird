@@ -1,4 +1,5 @@
 //
+#import "Diagnostics/NFBDiagnostics.h"
 //  CountryFilter.m
 //  NeoFreeBird
 //
@@ -432,7 +433,7 @@ static BOOL CFViewModelAuthorIsFollowed(id viewModel) {
         hide = [hiddenRegions containsObject:region];
     }
     if (hide) {
-        NSLog(@"[NFB] country filter: hid @%@ (country=%@ region=%@)", handle,
+        NFBLog(@"country filter: hid @%@ (country=%@ region=%@)", handle,
               country, region ?: @"-");
     }
     return hide;

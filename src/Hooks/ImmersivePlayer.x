@@ -1,4 +1,5 @@
 //
+#import "Diagnostics/NFBDiagnostics.h"
 //  ImmersivePlayer.x
 //  NeoFreeBird
 //
@@ -267,9 +268,12 @@ static BOOL isUpwardPan(UIGestureRecognizer *gesture) {
 // MARK: - Tap to Play/Pause
 
 static TAVPlayer* immersivePagePlayer(UIView* rootView) {
-    // Fast path: the known page-view class with a "player" ivar.
+    // Fast path: the known page-view class with a "_player" ivar holding a
+    // TAVPlayer (which is an NSObject wrapper, NOT an AVPlayer subclass).
     __block UIView* pageView = nil;
     Class pageViewClass = %c(_TtC14T1TwitterSwift22ImmersiveVideoPageView);
+    NFBLog(@"immersive scan: fast-path class %@",
+           pageViewClass ? @"found" : @"nil (X renamed it?)");
     if (pageViewClass) {
         EnumerateSubviewsRecursively(rootView, ^(UIView* view) {
             if (!pageView && [view isKindOfClass:pageViewClass]) {
@@ -278,19 +282,28 @@ static TAVPlayer* immersivePagePlayer(UIView* rootView) {
         });
     }
     if (pageView) {
-        Ivar playerIvar = class_getInstanceVariable([pageView class], "player");
-        id player = playerIvar ? object_getIvar(pageView, playerIvar) : nil;
-        if ([player isKindOfClass:[AVPlayer class]]) {
-            return (TAVPlayer*)player;
+        // The ivar is "_player" (with underscore). Try both names.
+        for (const char* ivarName in {@"_player", "player"}) {
+            Ivar playerIvar = class_getInstanceVariable([pageView class], ivarName);
+            id player = playerIvar ? object_getIvar(pageView, playerIvar) : nil;
+            NFBLog(@"immersive scan: fast-path pageView=%@ ivar=%s player=%@",
+                   NSStringFromClass([pageView class]), ivarName,
+                   player ? NSStringFromClass([player class]) : @"nil");
+            if (player && ([player isKindOfClass:[TAVPlayer class]] ||
+                           [player isKindOfClass:[AVPlayer class]])) {
+                return (TAVPlayer*)player;
+            }
         }
     }
-    // Fallback: scan every subview's ivars for any AVPlayer. Survives X
-    // renaming the page-view class or the ivar holding the player.
+    // Fallback: scan every subview's ivars for any TAVPlayer or AVPlayer.
+    // Survives X renaming the page-view class or the ivar holding the player.
     __block TAVPlayer* found = nil;
+    __block NSUInteger scannedViews = 0;
     EnumerateSubviewsRecursively(rootView, ^(UIView* view) {
         if (found) {
             return;
         }
+        scannedViews++;
         unsigned int ivarCount = 0;
         Ivar* ivars = class_copyIvarList([view class], &ivarCount);
         for (unsigned int i = 0; i < ivarCount && !found; i++) {
@@ -299,12 +312,16 @@ static TAVPlayer* immersivePagePlayer(UIView* rootView) {
                 continue;
             }
             id value = object_getIvar(view, ivars[i]);
-            if ([value isKindOfClass:[AVPlayer class]]) {
+            if ([value isKindOfClass:[TAVPlayer class]] ||
+                [value isKindOfClass:[AVPlayer class]]) {
                 found = (TAVPlayer*)value;
             }
         }
         free(ivars);
     });
+    NFBLog(@"immersive scan: fallback scanned %lu views, player=%@",
+           (unsigned long)scannedViews,
+           found ? NSStringFromClass([found class]) : @"nil");
     return found;
 }
 
@@ -312,11 +329,65 @@ static TAVPlayer* immersivePagePlayer(UIView* rootView) {
 // TAVPlayer is X's AVPlayer subclass; the current item's asset is the
 // rendition on screen. isKindOfClass-guarded: if X ever stops subclassing
 // AVPlayer this safely yields nil instead of crashing.
-static NSURL* _Nullable BHTImmersivePlayingURL(TAVPlayer* _Nullable player) {
-    if (!player || ![player isKindOfClass:[AVPlayer class]]) {
+// TAVPlayer is an NSObject wrapper (not an AVPlayer subclass). It holds the
+// real AVPlayer internally. Find it via ivar introspection.
+static AVPlayer* _Nullable BHTAVPlayerFromTAVPlayer(TAVPlayer* tavPlayer) {
+    if (!tavPlayer) {
         return nil;
     }
-    AVPlayerItem* item = [(AVPlayer*)player currentItem];
+    if ([tavPlayer isKindOfClass:[AVPlayer class]]) {
+        return (AVPlayer*)tavPlayer;
+    }
+    // Scan ivars for an AVPlayer (or AVQueuePlayer).
+    unsigned int ivarCount = 0;
+    Ivar* ivars = class_copyIvarList([tavPlayer class], &ivarCount);
+    AVPlayer* found = nil;
+    for (unsigned int i = 0; i < ivarCount && !found; i++) {
+        const char* type = ivar_getTypeEncoding(ivars[i]);
+        if (!type || type[0] != '@') {
+            continue;
+        }
+        id value = object_getIvar(tavPlayer, ivars[i]);
+        if ([value isKindOfClass:[AVPlayer class]]) {
+            found = (AVPlayer*)value;
+        }
+    }
+    free(ivars);
+    // Also check properties (Swift stored properties may only be properties).
+    if (!found) {
+        unsigned int propCount = 0;
+        objc_property_t* props = class_copyPropertyList([tavPlayer class], &propCount);
+        for (unsigned int i = 0; i < propCount && !found; i++) {
+            const char* name = property_getName(props[i]);
+            SEL sel = sel_registerName(name);
+            if ([tavPlayer respondsToSelector:sel]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+                id value = [tavPlayer performSelector:sel];
+#pragma clang diagnostic pop
+                if ([value isKindOfClass:[AVPlayer class]]) {
+                    found = (AVPlayer*)value;
+                }
+            }
+        }
+        free(props);
+    }
+    NFBLog(@"immersive download: TAVPlayer=%@ internal AVPlayer=%@",
+           NSStringFromClass([tavPlayer class]),
+           found ? NSStringFromClass([found class]) : @"nil");
+    return found;
+}
+
+static NSURL* _Nullable BHTImmersivePlayingURL(TAVPlayer* _Nullable player) {
+    if (!player) {
+        return nil;
+    }
+    AVPlayer* avPlayer = BHTAVPlayerFromTAVPlayer(player);
+    if (!avPlayer) {
+        NFBLog(@"immersive download: no AVPlayer inside TAVPlayer");
+        return nil;
+    }
+    AVPlayerItem* item = avPlayer.currentItem;
     AVAsset* asset = item.asset;
     if ([asset isKindOfClass:[AVURLAsset class]]) {
         return [(AVURLAsset*)asset URL];
@@ -428,7 +499,7 @@ static const void* kBHTImmersiveDownloadButtonKey =
         AVPlayerItem* item = [player isKindOfClass:[AVPlayer class]]
                                  ? [(AVPlayer*)player currentItem]
                                  : nil;
-        NSLog(@"[NFB] immersive download: no playable URL (player=%@ item=%@ asset=%@)",
+        NFBLog(@"immersive download: no playable URL (player=%@ item=%@ asset=%@)",
               player ? NSStringFromClass([player class]) : @"nil",
               item ? NSStringFromClass([item class]) : @"nil",
               item.asset ? NSStringFromClass([item.asset class]) : @"nil");
@@ -459,7 +530,7 @@ static const void* kBHTImmersiveDownloadButtonKey =
         [host presentViewController:alert animated:YES completion:nil];
         return;
     }
-    NSLog(@"[NFB] immersive download: %@", videoURL.absoluteString);
+    NFBLog(@"immersive download: %@", videoURL.absoluteString);
     static char immersiveDownloaderKey;
     DownloadInlineButton* downloader =
         objc_getAssociatedObject(self, &immersiveDownloaderKey);

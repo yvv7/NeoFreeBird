@@ -1,4 +1,5 @@
 //
+#import "Diagnostics/NFBDiagnostics.h"
 //  DownloadInlineButton.m
 //  NeoFreeBird
 //
@@ -238,7 +239,7 @@ static NSString* _Nullable FileBaseNameForStatus(id status) {
             createdAt = [(NFBStatusDuckType*)status createdAt];
     } @catch (NSException* __unused ex) {
     }
-    NSLog(@"[NFB] smart filename: status=%@ via=%@ screenName=%@ createdAt=%@",
+    NFBLog(@"smart filename: status=%@ via=%@ screenName=%@ createdAt=%@",
           status ? NSStringFromClass([status class]) : @"nil", via, screenName,
           createdAt);
     if (![screenName isKindOfClass:NSString.class] || screenName.length == 0)
@@ -600,7 +601,7 @@ static NSString* _Nullable FileBaseNameForStatus(id status) {
 - (void)presentFailureAlertWithMessage:(NSString*)message
                                command:(NSString*)command
                              failTrace:(NSString*)failTrace {
-    NSLog(@"[NFB] %@ command=%@\n%@", message, command, failTrace);
+    NFBLog(@"%@ command=%@\n%@", message, command, failTrace);
 
     // Keep the alert readable: tail of the trace on screen, full trace in
     // the log and on the clipboard.
@@ -819,7 +820,7 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
                                      [ReturnCode isCancel:returnCode];
                     if (![ReturnCode isSuccess:returnCode] && !cancelled &&
                         attempt < 2) {
-                        NSLog(@"[NFB] Download attempt %ld failed (rc=%@), "
+                        NFBLog(@"Download attempt %ld failed (rc=%@), "
                               @"retrying: %@",
                               (long)attempt,
                               returnCode

@@ -1,4 +1,5 @@
 //
+#import "Diagnostics/NFBDiagnostics.h"
 //  Timeline.x
 //  NeoFreeBird
 //
@@ -537,6 +538,12 @@ static NSSet<NSNumber*>* ConversationAuthorRepliedToUserIDs(NSArray* sections,
             ? IsInHierarchyOfClass(dataViewController,
                                    @"_TtC32TwitterHomeFeatureImplementation35HomeTimelineContainerViewController")
             : YES;
+    if (!homeTimelineClass) {
+        NFBLog(@"country filter: home class nil, using fallback scope");
+    }
+    NFBLog(@"country filter: enabled=%d inHome=%d inConv=%d inProfile=%d inSearch=%d",
+           [CountryFilter isEnabled], inHomeTimeline, context.inConversation,
+           context.inProfile, context.inSearch);
     context.countryFilterEnabled =
         [CountryFilter isEnabled] && inHomeTimeline && !context.inConversation &&
         !context.inProfile && !context.inSearch;
@@ -546,7 +553,7 @@ static NSSet<NSNumber*>* ConversationAuthorRepliedToUserIDs(NSArray* sections,
         context.hiddenRegions = [CountryFilter hiddenRegions];
         context.exemptHandles = [CountryFilter exemptHandles];
         context.protectFollowing = [CountryFilter protectFollowing];
-        NSLog(@"[NFB] country filter: active (countries=%lu regions=%lu)",
+        NFBLog(@"country filter: active (countries=%lu regions=%lu)",
               (unsigned long)context.hiddenCountries.count,
               (unsigned long)context.hiddenRegions.count);
     }

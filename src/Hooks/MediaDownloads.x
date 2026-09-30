@@ -1,4 +1,5 @@
 //
+#import "Diagnostics/NFBDiagnostics.h"
 //  MediaDownloads.x
 //  NeoFreeBird
 //
@@ -28,7 +29,7 @@ static void CaptureVoiceURL(NSURL* url, NSString* source) {
         return;
     }
     BOOL kept = IsVoiceMediaURL(url);
-    NSLog(@"[NFB] voice capture (%@) %@: %@", source, kept ? @"kept" : @"ignored", url);
+    NFBLog(@"voice capture (%@) %@: %@", source, kept ? @"kept" : @"ignored", url);
     if (kept) {
         nfbLastCapturedVoiceURL = url;
     }
@@ -70,7 +71,7 @@ static void DownloadVoiceMessage(NSURL* sourceURL) {
         NSError* copyError = nil;
         [[NSFileManager defaultManager] copyItemAtURL:sourceURL toURL:destination error:&copyError];
         if (copyError) {
-            NSLog(@"[NFB] DownloadVoiceMessage copy failed: %@", copyError);
+            NFBLog(@"DownloadVoiceMessage copy failed: %@", copyError);
             return;
         }
         [BHTManager showSaveVC:destination];

@@ -482,3 +482,5 @@
 "COUNTRY_FILTER_CANCEL" = "Cancel";
 "IMMERSIVE_DOWNLOAD_ALERT_TITLE" = "Download";
 "IMMERSIVE_DOWNLOAD_NO_VIDEO_MESSAGE" = "Couldn't find the playing video.";
+"DIAGNOSTICS_TITLE" = "Diagnostics";
+"DIAGNOSTICS_SUBTITLE" = "View the tweak's diagnostic log";
