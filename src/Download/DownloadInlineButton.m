@@ -1099,7 +1099,7 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
                 if (outFile) {
                     [feedback notificationOccurred:UINotificationFeedbackTypeSuccess];
                     if (sProgressPill) {
-                        [sProgressPill dismissWithMessage:@"Saved"];
+                        [sProgressPill dismiss];
                         sProgressPill = nil;
                     }
                     [self deliverFile:outFile ext:job[@"ext"]];
@@ -1235,13 +1235,7 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
     sTotalQueueCount = 0;
 
     if (sProgressPill) {
-        if (finishedItems.count > 0 && failures.count == 0) {
-            NSString* msg = finishedItems.count == 1 ? @"Saved" :
-                [NSString stringWithFormat:@"%lu saved", (unsigned long)finishedItems.count];
-            [sProgressPill dismissWithMessage:msg];
-        } else {
-            [sProgressPill dismiss];
-        }
+        [sProgressPill dismiss];
         sProgressPill = nil;
     }
 

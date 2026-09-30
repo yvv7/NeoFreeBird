@@ -183,7 +183,7 @@ static NFBProgressPill* sCurrentActivePill = nil;
 
         self.dismissGeneration++;
         NSUInteger gen = self.dismissGeneration;
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)),
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)),
                        dispatch_get_main_queue(), ^{
                            if (self.dismissGeneration == gen) {
                                [self dismiss];
@@ -197,14 +197,12 @@ static NFBProgressPill* sCurrentActivePill = nil;
         if (sCurrentActivePill == self) {
             sCurrentActivePill = nil;
         }
-        [UIView animateWithDuration:0.3
+        [UIView animateWithDuration:0.22
                               delay:0
-             usingSpringWithDamping:0.9
-              initialSpringVelocity:0.3
                             options:UIViewAnimationOptionCurveEaseIn
                          animations:^{
                              self.pill.alpha = 0;
-                             self.pill.transform = CGAffineTransformMakeTranslation(0, -20);
+                             self.pill.transform = CGAffineTransformMakeTranslation(0, -18);
                          }
                          completion:^(__unused BOOL finished) {
                              [self.pill removeFromSuperview];

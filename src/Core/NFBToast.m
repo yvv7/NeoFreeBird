@@ -8,7 +8,7 @@
 @implementation NFBToast
 
 + (void)show:(NSString*)message {
-    [self show:message duration:2.0];
+    [self show:message duration:1.1];
 }
 
 + (void)show:(NSString*)message duration:(NSTimeInterval)duration {
@@ -30,6 +30,13 @@
             return;
         }
 
+        // Clean up any existing toasts (88235) or progress pills (88234) so they never overlap
+        for (UIView* sub in window.subviews) {
+            if (sub.tag == 88234 || sub.tag == 88235) {
+                [sub removeFromSuperview];
+            }
+        }
+
         // Haptic feedback on toast presentation
         UINotificationFeedbackGenerator* haptic = [[UINotificationFeedbackGenerator alloc] init];
         [haptic notificationOccurred:UINotificationFeedbackTypeSuccess];
@@ -37,14 +44,15 @@
         // Frosted glass pill container
         UIBlurEffect* blurEffect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterialDark];
         UIVisualEffectView* pill = [[UIVisualEffectView alloc] initWithEffect:blurEffect];
-        pill.layer.cornerRadius = 22;
+        pill.tag = 88235;
+        pill.layer.cornerRadius = 20;
         pill.layer.masksToBounds = YES;
         pill.layer.borderWidth = 0.5;
         pill.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.18].CGColor;
         pill.alpha = 0;
-        pill.transform = CGAffineTransformMakeTranslation(0, -32);
+        pill.transform = CGAffineTransformMakeTranslation(0, -28);
 
-        // Checkmark + label inside vibrancy effect
+        // Checkmark + label
         UILabel* label = [[UILabel alloc] init];
         label.text = [NSString stringWithFormat:@"✓  %@", message];
         label.textColor = [UIColor whiteColor];
@@ -55,8 +63,8 @@
 
         label.translatesAutoresizingMaskIntoConstraints = NO;
         [NSLayoutConstraint activateConstraints:@[
-            [label.topAnchor constraintEqualToAnchor:pill.contentView.topAnchor constant:11],
-            [label.bottomAnchor constraintEqualToAnchor:pill.contentView.bottomAnchor constant:-11],
+            [label.topAnchor constraintEqualToAnchor:pill.contentView.topAnchor constant:10],
+            [label.bottomAnchor constraintEqualToAnchor:pill.contentView.bottomAnchor constant:-10],
             [label.leadingAnchor constraintEqualToAnchor:pill.contentView.leadingAnchor constant:18],
             [label.trailingAnchor constraintEqualToAnchor:pill.contentView.trailingAnchor constant:-18],
         ]];
@@ -69,11 +77,11 @@
             [pill.centerXAnchor constraintEqualToAnchor:window.centerXAnchor],
         ]];
 
-        // Spring bounce in, hold, smooth spring out.
-        [UIView animateWithDuration:0.45
+        // Fast, fluid spring in, hold, and smooth slide out
+        [UIView animateWithDuration:0.32
                               delay:0
-             usingSpringWithDamping:0.75
-              initialSpringVelocity:0.6
+             usingSpringWithDamping:0.8
+              initialSpringVelocity:0.8
                             options:UIViewAnimationOptionCurveEaseOut
                          animations:^{
                              pill.alpha = 1.0;
@@ -84,14 +92,12 @@
                                  dispatch_time(DISPATCH_TIME_NOW,
                                                (int64_t)(duration * NSEC_PER_SEC)),
                                  dispatch_get_main_queue(), ^{
-                                     [UIView animateWithDuration:0.3
+                                     [UIView animateWithDuration:0.25
                                                            delay:0
-                                          usingSpringWithDamping:0.9
-                                           initialSpringVelocity:0.3
                                                          options:UIViewAnimationOptionCurveEaseIn
                                                       animations:^{
                                                           pill.alpha = 0;
-                                                          pill.transform = CGAffineTransformMakeTranslation(0, -20);
+                                                          pill.transform = CGAffineTransformMakeTranslation(0, -18);
                                                       }
                                                       completion:^(__unused BOOL f2) {
                                                           [pill removeFromSuperview];
