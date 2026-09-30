@@ -20,9 +20,12 @@
 #import "Settings/Pages/WebSettingsViewController.h"
 #import "ThemeColor/Palette.h"
 
-@interface ModernSettingsViewController () <UITableViewDataSource, UITableViewDelegate>
+@interface ModernSettingsViewController () <UITableViewDataSource, UITableViewDelegate, UISearchResultsUpdating>
 @property (nonatomic, strong) TFNTwitterAccount* account;
 @property (nonatomic, strong) UITableView* tableView;
+@property (nonatomic, strong) UISearchController* searchController;
+@property (nonatomic, strong) NSMutableArray<NSDictionary*>* searchResults;
+@property (nonatomic, assign) BOOL isSearching;
 @property (nonatomic, strong) NSArray* sections;
 @property (nonatomic, strong) NSArray* developerCells;
 @property (nonatomic, strong) NSArray* coolKidsCells;
@@ -36,9 +39,12 @@
 #pragma mark - Section Headers
 
 - (UIView*)tableView:(UITableView*)tableView viewForHeaderInSection:(NSInteger)section {
+    if (self.isSearching) {
+        return nil;
+    }
     if (section == 0) {
         UIView* headerView = [[UIView alloc] init];
-        headerView.backgroundColor = [Palette currentBackgroundColor];
+        headerView.backgroundColor = [UIColor clearColor];
 
         UILabel* subtitleLabel = [[UILabel alloc] init];
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -60,13 +66,13 @@
 
         [NSLayoutConstraint activateConstraints:@[
             [subtitleLabel.leadingAnchor constraintEqualToAnchor:headerView.leadingAnchor
-                                                        constant:20],
+                                                        constant:16],
             [subtitleLabel.trailingAnchor constraintEqualToAnchor:headerView.trailingAnchor
-                                                         constant:-20],
+                                                         constant:-16],
             [subtitleLabel.topAnchor constraintEqualToAnchor:headerView.topAnchor
-                                                    constant:16],
+                                                    constant:8],
             [subtitleLabel.bottomAnchor constraintEqualToAnchor:headerView.bottomAnchor
-                                                       constant:-16]
+                                                       constant:-10]
         ]];
 
         return headerView;
@@ -93,63 +99,58 @@
 
 - (UIView*)headerViewWithTitle:(NSString*)title {
     UIView* headerView = [[UIView alloc] init];
-    headerView.backgroundColor = [Palette currentBackgroundColor];
+    headerView.backgroundColor = [UIColor clearColor];
 
     UILabel* titleLabel = [[UILabel alloc] init];
     titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    titleLabel.text = title;
+    titleLabel.text = [title uppercaseString];
 
     id fontGroup = [BHTManager sharedFontGroup];
-    titleLabel.font = [fontGroup performSelector:@selector(headline1BoldFont)];
+    titleLabel.font = [fontGroup performSelector:@selector(subtext2BoldFont)] ?: [UIFont systemFontOfSize:13 weight:UIFontWeightSemibold];
 
     Class TAEColorSettingsCls = objc_getClass("TAEColorSettings");
     id settings = [TAEColorSettingsCls sharedSettings];
     id currentPalette = [settings currentColorPalette];
     id colorPalette = [currentPalette colorPalette];
-    UIColor* titleColor = [colorPalette performSelector:@selector(textColor)];
+    UIColor* titleColor = [colorPalette performSelector:@selector(tabBarItemColor)] ?: [UIColor secondaryLabelColor];
     titleLabel.textColor = titleColor;
 
     [headerView addSubview:titleLabel];
 
     [NSLayoutConstraint activateConstraints:@[
         [titleLabel.leadingAnchor constraintEqualToAnchor:headerView.leadingAnchor
-                                                 constant:20],
+                                                 constant:16],
         [titleLabel.trailingAnchor constraintEqualToAnchor:headerView.trailingAnchor
-                                                  constant:-20],
+                                                  constant:-16],
         [titleLabel.topAnchor constraintEqualToAnchor:headerView.topAnchor
-                                             constant:32],
+                                             constant:16],
         [titleLabel.bottomAnchor constraintEqualToAnchor:headerView.bottomAnchor
-                                                constant:-16]
+                                                constant:-6]
     ]];
 
     return headerView;
 }
 
 - (CGFloat)tableView:(UITableView*)tableView heightForHeaderInSection:(NSInteger)section {
-    if (section == 0 || section == 1 || section == 2 || section == 3 || section == 4 ||
-        section == 5) {
+    if (self.isSearching) {
+        return CGFLOAT_MIN;
+    }
+    if (section >= 0 && section <= 5) {
         return UITableViewAutomaticDimension;
     }
-    return 0;
+    return CGFLOAT_MIN;
 }
 
 #pragma mark - Section Footers
 
 - (UIView*)tableView:(UITableView*)tableView viewForFooterInSection:(NSInteger)section {
-    if (section == 0) {
-        UIView* separator = [[UIView alloc] initWithFrame:CGRectZero];
-        separator.backgroundColor = [UIColor separatorColor];
-        return separator;
-    }
     return nil;
 }
 
 - (CGFloat)tableView:(UITableView*)tableView heightForFooterInSection:(NSInteger)section {
-    if (section == 0) {
-        return 1.0 / UIScreen.mainScreen.scale;
-    }
     return CGFLOAT_MIN;
 }
+
 
 #pragma mark - Lifecycle & Setup
 
@@ -170,7 +171,8 @@
             @"subtitle":
                 [[BHTBundle sharedBundle] localizedStringForKey:@"MODERN_SETTINGS_LAYOUT_SUBTITLE"],
             @"icon": @"settings_stroke",
-            @"action": @"showLayoutSettings"
+            @"action": @"showLayoutSettings",
+            @"badgeColor": [UIColor colorWithRed:29.0/255.0 green:155.0/255.0 blue:240.0/255.0 alpha:1.0]
         },
         @{
             @"title":
@@ -178,14 +180,16 @@
             @"subtitle":
                 [[BHTBundle sharedBundle] localizedStringForKey:@"MODERN_SETTINGS_APPEARANCE_SUBTITLE"],
             @"icon": @"paintbrush_stroke",
-            @"action": @"showAppearanceSettings"
+            @"action": @"showAppearanceSettings",
+            @"badgeColor": [UIColor colorWithRed:120.0/255.0 green:86.0/255.0 blue:255.0/255.0 alpha:1.0]
         },
         @{
             @"title": [[BHTBundle sharedBundle] localizedStringForKey:@"MODERN_SETTINGS_GROK_TITLE"],
             @"subtitle":
                 [[BHTBundle sharedBundle] localizedStringForKey:@"MODERN_SETTINGS_GROK_SUBTITLE"],
             @"icon": @"grok_icon_stroke",
-            @"action": @"showGrokSettings"
+            @"action": @"showGrokSettings",
+            @"badgeColor": [UIColor colorWithRed:100.0/255.0 green:116.0/255.0 blue:139.0/255.0 alpha:1.0]
         },
         @{
             @"title":
@@ -193,63 +197,72 @@
             @"subtitle":
                 [[BHTBundle sharedBundle] localizedStringForKey:@"MODERN_SETTINGS_TIMELINES_SUBTITLE"],
             @"icon": @"home_stroke",
-            @"action": @"showTimelinesSettings"
+            @"action": @"showTimelinesSettings",
+            @"badgeColor": [UIColor colorWithRed:0.0/255.0 green:186.0/255.0 blue:124.0/255.0 alpha:1.0]
         },
         @{
             @"title": [[BHTBundle sharedBundle] localizedStringForKey:@"MODERN_SETTINGS_TWEETS_TITLE"],
             @"subtitle":
                 [[BHTBundle sharedBundle] localizedStringForKey:@"MODERN_SETTINGS_TWEETS_SUBTITLE"],
             @"icon": @"quill",
-            @"action": @"showTweetsSettings"
+            @"action": @"showTweetsSettings",
+            @"badgeColor": [UIColor colorWithRed:14.0/255.0 green:165.0/255.0 blue:233.0/255.0 alpha:1.0]
         },
         @{
             @"title": [[BHTBundle sharedBundle] localizedStringForKey:@"MODERN_SETTINGS_MEDIA_TITLE"],
             @"subtitle":
                 [[BHTBundle sharedBundle] localizedStringForKey:@"MODERN_SETTINGS_MEDIA_SUBTITLE"],
             @"icon": @"media_tab_stroke",
-            @"action": @"showDownloadsSettings"
+            @"action": @"showDownloadsSettings",
+            @"badgeColor": [UIColor colorWithRed:16.0/255.0 green:185.0/255.0 blue:129.0/255.0 alpha:1.0]
         },
         @{
             @"title": [[BHTBundle sharedBundle] localizedStringForKey:@"MODERN_SETTINGS_PROFILES_TITLE"],
             @"subtitle":
                 [[BHTBundle sharedBundle] localizedStringForKey:@"MODERN_SETTINGS_PROFILES_SUBTITLE"],
             @"icon": @"account",
-            @"action": @"showProfilesSettings"
+            @"action": @"showProfilesSettings",
+            @"badgeColor": [UIColor colorWithRed:99.0/255.0 green:102.0/255.0 blue:241.0/255.0 alpha:1.0]
         },
         @{
             @"title": [[BHTBundle sharedBundle] localizedStringForKey:@"MODERN_SETTINGS_CHAT_TITLE"],
             @"subtitle":
                 [[BHTBundle sharedBundle] localizedStringForKey:@"MODERN_SETTINGS_CHAT_SUBTITLE"],
             @"icon": @"messages_stroke",
-            @"action": @"showChatSettings"
+            @"action": @"showChatSettings",
+            @"badgeColor": [UIColor colorWithRed:37.0/255.0 green:99.0/255.0 blue:235.0/255.0 alpha:1.0]
         },
         @{
             @"title": [[BHTBundle sharedBundle] localizedStringForKey:@"MODERN_SETTINGS_SEARCH_TITLE"],
             @"subtitle":
                 [[BHTBundle sharedBundle] localizedStringForKey:@"MODERN_SETTINGS_SEARCH_SUBTITLE"],
             @"icon": @"search_stroke",
-            @"action": @"showSearchSettings"
+            @"action": @"showSearchSettings",
+            @"badgeColor": [UIColor colorWithRed:13.0/255.0 green:148.0/255.0 blue:136.0/255.0 alpha:1.0]
         },
         @{
             @"title": [[BHTBundle sharedBundle] localizedStringForKey:@"MODERN_SETTINGS_WEB_TITLE"],
             @"subtitle":
                 [[BHTBundle sharedBundle] localizedStringForKey:@"MODERN_SETTINGS_WEB_SUBTITLE"],
             @"icon": @"globe_stroke",
-            @"action": @"showWebSettings"
+            @"action": @"showWebSettings",
+            @"badgeColor": [UIColor colorWithRed:59.0/255.0 green:130.0/255.0 blue:246.0/255.0 alpha:1.0]
         },
         @{
             @"title": [[BHTBundle sharedBundle] localizedStringForKey:@"MODERN_SETTINGS_BRANDING_TITLE"],
             @"subtitle":
                 [[BHTBundle sharedBundle] localizedStringForKey:@"MODERN_SETTINGS_BRANDING_SUBTITLE"],
             @"icon": @"hash_stroke",
-            @"action": @"showBrandingSettings"
+            @"action": @"showBrandingSettings",
+            @"badgeColor": [UIColor colorWithRed:245.0/255.0 green:158.0/255.0 blue:11.0/255.0 alpha:1.0]
         },
         @{
             @"title": [[BHTBundle sharedBundle] localizedStringForKey:@"MODERN_SETTINGS_PRESETS_TITLE"],
             @"subtitle":
                 [[BHTBundle sharedBundle] localizedStringForKey:@"MODERN_SETTINGS_PRESETS_SUBTITLE"],
             @"icon": @"receipt_checkmark_stroke",
-            @"action": @"showPresetsSettings"
+            @"action": @"showPresetsSettings",
+            @"badgeColor": [UIColor colorWithRed:236.0/255.0 green:72.0/255.0 blue:153.0/255.0 alpha:1.0]
         },
         @{
             @"title":
@@ -257,17 +270,20 @@
             @"subtitle":
                 [[BHTBundle sharedBundle] localizedStringForKey:@"MODERN_SETTINGS_EXPERIMENTAL_SUBTITLE"],
             @"icon": @"flask",
-            @"action": @"showExperimentalSettings"
+            @"action": @"showExperimentalSettings",
+            @"badgeColor": [UIColor colorWithRed:139.0/255.0 green:92.0/255.0 blue:246.0/255.0 alpha:1.0]
         },
         @{
             @"title": [[BHTBundle sharedBundle] localizedStringForKey:@"MODERN_SETTINGS_DEBUG_TITLE"],
             @"subtitle":
                 [[BHTBundle sharedBundle] localizedStringForKey:@"MODERN_SETTINGS_DEBUG_SUBTITLE"],
             @"icon": @"code",
-            @"action": @"showDebugSettings"
+            @"action": @"showDebugSettings",
+            @"badgeColor": [UIColor colorWithRed:239.0/255.0 green:68.0/255.0 blue:68.0/255.0 alpha:1.0]
         }
     ];
 }
+
 
 - (void)setupDeveloperCells {
     self.developerCells = @[
@@ -361,6 +377,7 @@
     [super viewDidLoad];
     [self setupNavigationBar];
     [self setupTableView];
+    [self setupSearchController];
     [self setupLayout];
     [self setupFooterLabel];
     [[NSNotificationCenter defaultCenter] addObserver:self
@@ -388,21 +405,40 @@
     }
 }
 
+- (void)setupSearchController {
+    self.searchController = [[UISearchController alloc] initWithSearchResultsController:nil];
+    self.searchController.searchResultsUpdater = self;
+    self.searchController.obscuresBackgroundDuringPresentation = NO;
+    self.searchController.searchBar.placeholder = @"Search Settings";
+    self.navigationItem.searchController = self.searchController;
+    self.navigationItem.hidesSearchBarWhenScrolling = NO;
+    self.definesPresentationContext = YES;
+}
+
 - (void)setupTableView {
-    self.tableView = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStyleGrouped];
+    self.tableView = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStyleInsetGrouped];
     self.tableView.translatesAutoresizingMaskIntoConstraints = NO;
     self.tableView.dataSource = self;
     self.tableView.delegate = self;
     self.tableView.backgroundColor = [Palette currentBackgroundColor];
-    self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
-    self.tableView.estimatedRowHeight = 80;
+    self.tableView.separatorStyle = UITableViewCellSeparatorStyleSingleLine;
+    self.tableView.separatorColor = [UIColor colorWithDynamicProvider:^UIColor * _Nonnull(UITraitCollection * _Nonnull traitCollection) {
+        if (traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark) {
+            return [UIColor colorWithWhite:1.0 alpha:0.08];
+        }
+        return [UIColor colorWithWhite:0.0 alpha:0.08];
+    }];
+    self.tableView.separatorInset = UIEdgeInsetsMake(0, 62, 0, 0);
+    self.tableView.estimatedRowHeight = 70;
     self.tableView.rowHeight = UITableViewAutomaticDimension;
-    self.tableView.estimatedSectionHeaderHeight = 50;
+    self.tableView.estimatedSectionHeaderHeight = 40;
     self.tableView.sectionHeaderHeight = UITableViewAutomaticDimension;
     self.tableView.showsVerticalScrollIndicator = NO;
     self.tableView.showsHorizontalScrollIndicator = NO;
     [self.tableView registerClass:[ModernSettingsTableViewCell class]
            forCellReuseIdentifier:@"SettingsCell"];
+    [self.tableView registerClass:[ModernSettingsToggleCell class]
+           forCellReuseIdentifier:@"SearchToggleCell"];
     [self.view addSubview:self.tableView];
 }
 
@@ -418,13 +454,13 @@
 - (void)setupFooterLabel {
     UIView* footerView =
         [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 60)];
-    footerView.backgroundColor = [Palette currentBackgroundColor];
+    footerView.backgroundColor = [UIColor clearColor];
 
     UILabel* footerLabel = [[UILabel alloc] init];
     footerLabel.translatesAutoresizingMaskIntoConstraints = NO;
     footerLabel.text = @NFB_VERSION_STRING " (" NFB_COMMIT_STRING ")";
     footerLabel.numberOfLines = 0;
-    footerLabel.textAlignment = NSTextAlignmentLeft;
+    footerLabel.textAlignment = NSTextAlignmentCenter;
     footerLabel.userInteractionEnabled = YES;
 
     footerLabel.font = TwitterChirpFont(TwitterFontStyleRegular);
@@ -440,13 +476,13 @@
 
     [NSLayoutConstraint activateConstraints:@[
         [footerLabel.leadingAnchor constraintEqualToAnchor:footerView.leadingAnchor
-                                                  constant:20], // match table cell padding
+                                                  constant:20],
         [footerLabel.trailingAnchor constraintEqualToAnchor:footerView.trailingAnchor
                                                    constant:-20],
         [footerLabel.topAnchor constraintEqualToAnchor:footerView.topAnchor
-                                              constant:8],
+                                              constant:12],
         [footerLabel.bottomAnchor constraintEqualToAnchor:footerView.bottomAnchor
-                                                 constant:-8]
+                                                 constant:-12]
     ]];
 
     UITapGestureRecognizer* tapGesture =
@@ -476,13 +512,90 @@
     }
 }
 
+#pragma mark - Search
+
+- (NSArray*)allSearchableItems {
+    static NSMutableArray* items = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        items = [NSMutableArray array];
+        for (NSDictionary* sec in self.sections) {
+            [items addObject:@{
+                @"type": @"category",
+                @"title": sec[@"title"] ?: @"",
+                @"subtitle": sec[@"subtitle"] ?: @"",
+                @"icon": sec[@"icon"] ?: @"settings_stroke",
+                @"action": sec[@"action"] ?: @"",
+                @"badgeColor": sec[@"badgeColor"] ?: [Palette currentAccentColor]
+            }];
+        }
+        NSArray* pages = @[@"general", @"appearance", @"timelines", @"tweets", @"media_downloads", @"profiles", @"chat", @"search", @"web", @"branding", @"presets", @"experimental", @"debug", @"grok"];
+        for (NSString* pageKey in pages) {
+            NSArray* toggles = [BHTSettings settingsForPage:pageKey];
+            for (NSDictionary* entry in toggles) {
+                NSString* key = entry[@"key"];
+                NSString* titleKey = entry[@"titleKey"];
+                if (!titleKey && key) {
+                    titleKey = [NSString stringWithFormat:@"%@_TITLE", [key uppercaseString]];
+                }
+                NSString* title = titleKey ? [[BHTBundle sharedBundle] localizedStringForKey:titleKey] : @"";
+                NSString* detailKey = key ? [NSString stringWithFormat:@"%@_DETAIL", [key uppercaseString]] : nil;
+                NSString* detail = detailKey ? [[BHTBundle sharedBundle] localizedStringForKey:detailKey] : @"";
+                if ([detail isEqualToString:detailKey]) {
+                    detail = @"";
+                }
+                if (title.length > 0 && ![title isEqualToString:titleKey]) {
+                    [items addObject:@{
+                        @"type": entry[@"type"] ?: @"toggle",
+                        @"key": key ?: @"",
+                        @"title": title,
+                        @"subtitle": detail ?: @"",
+                        @"default": entry[@"default"] ?: @NO,
+                        @"pageKey": pageKey
+                    }];
+                }
+            }
+        }
+    });
+    return items;
+}
+
+- (void)updateSearchResultsForSearchController:(UISearchController*)searchController {
+    NSString* query = [searchController.searchBar.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (query.length == 0) {
+        self.isSearching = NO;
+        [self.searchResults removeAllObjects];
+        [self.tableView reloadData];
+        return;
+    }
+
+    self.isSearching = YES;
+    self.searchResults = [NSMutableArray array];
+    NSArray* all = [self allSearchableItems];
+    for (NSDictionary* item in all) {
+        NSString* title = item[@"title"];
+        NSString* subtitle = item[@"subtitle"];
+        if ([title localizedCaseInsensitiveContainsString:query] ||
+            [subtitle localizedCaseInsensitiveContainsString:query]) {
+            [self.searchResults addObject:item];
+        }
+    }
+    [self.tableView reloadData];
+}
+
 #pragma mark - UITableViewDataSource
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView*)tableView {
+    if (self.isSearching) {
+        return 1;
+    }
     return 6;
 }
 
 - (NSInteger)tableView:(UITableView*)tableView numberOfRowsInSection:(NSInteger)section {
+    if (self.isSearching) {
+        return self.searchResults.count;
+    }
     if (section == 0) {
         return self.sections.count;
     } else if (section == 1) {
@@ -501,13 +614,39 @@
 
 - (UITableViewCell*)tableView:(UITableView*)tableView
         cellForRowAtIndexPath:(NSIndexPath*)indexPath {
+    if (self.isSearching) {
+        NSDictionary* item = self.searchResults[indexPath.row];
+        if ([item[@"type"] isEqualToString:@"toggle"]) {
+            ModernSettingsToggleCell* cell = [tableView dequeueReusableCellWithIdentifier:@"SearchToggleCell"
+                                                                             forIndexPath:indexPath];
+            [cell configureWithTitle:item[@"title"] subtitle:item[@"subtitle"]];
+            NSString* key = item[@"key"];
+            BOOL isEnabled = [[[NSUserDefaults standardUserDefaults] objectForKey:key] ?: item[@"default"] boolValue];
+            cell.toggleSwitch.on = isEnabled;
+            cell.toggleSwitch.onTintColor = [Palette currentAccentColor];
+            objc_setAssociatedObject(cell.toggleSwitch, @"searchPrefKey", key, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            [cell.toggleSwitch removeTarget:self action:@selector(searchSwitchChanged:) forControlEvents:UIControlEventValueChanged];
+            [cell.toggleSwitch addTarget:self action:@selector(searchSwitchChanged:) forControlEvents:UIControlEventValueChanged];
+            return cell;
+        } else {
+            ModernSettingsTableViewCell* cell = [tableView dequeueReusableCellWithIdentifier:@"SettingsCell"
+                                                                                forIndexPath:indexPath];
+            [cell configureWithTitle:item[@"title"]
+                            subtitle:item[@"subtitle"]
+                            iconName:item[@"icon"] ?: @"settings_stroke"
+                          badgeColor:item[@"badgeColor"] ?: [Palette currentAccentColor]];
+            return cell;
+        }
+    }
+
     if (indexPath.section == 0) {
         ModernSettingsTableViewCell* cell = [tableView dequeueReusableCellWithIdentifier:@"SettingsCell"
                                                                             forIndexPath:indexPath];
         NSDictionary* sectionData = self.sections[indexPath.row];
         [cell configureWithTitle:sectionData[@"title"]
                         subtitle:sectionData[@"subtitle"]
-                        iconName:sectionData[@"icon"]];
+                        iconName:sectionData[@"icon"]
+                      badgeColor:sectionData[@"badgeColor"]];
         return cell;
     } else if (indexPath.section == 1) {
         return [self developerCellForTableView:tableView
@@ -534,6 +673,13 @@
     return nil;
 }
 
+- (void)searchSwitchChanged:(UISwitch*)sender {
+    NSString* key = objc_getAssociatedObject(sender, @"searchPrefKey");
+    if (key) {
+        [[NSUserDefaults standardUserDefaults] setBool:sender.isOn forKey:key];
+    }
+}
+
 - (UITableViewCell*)developerCellForTableView:(UITableView*)tableView
                                   atIndexPath:(NSIndexPath*)indexPath
                                     fromArray:(NSArray*)array {
@@ -556,7 +702,9 @@
     cell.imageView.image = nil;
     UIImageView* avatarImageView = [[UIImageView alloc] init];
     avatarImageView.translatesAutoresizingMaskIntoConstraints = NO;
-    avatarImageView.layer.cornerRadius = 26;
+    avatarImageView.layer.cornerRadius = 24;
+    avatarImageView.layer.borderWidth = 1.0;
+    avatarImageView.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.1].CGColor;
     avatarImageView.clipsToBounds = YES;
     avatarImageView.contentMode = UIViewContentModeScaleAspectFill;
     avatarImageView.tag = 100;
@@ -578,30 +726,30 @@
     [cell.contentView addSubview:devChevron];
     [NSLayoutConstraint activateConstraints:@[
         [avatarImageView.leadingAnchor constraintEqualToAnchor:cell.contentView.leadingAnchor
-                                                      constant:20],
+                                                      constant:16],
         [avatarImageView.centerYAnchor constraintEqualToAnchor:cell.contentView.centerYAnchor],
-        [avatarImageView.widthAnchor constraintEqualToConstant:52],
-        [avatarImageView.heightAnchor constraintEqualToConstant:52],
+        [avatarImageView.widthAnchor constraintEqualToConstant:48],
+        [avatarImageView.heightAnchor constraintEqualToConstant:48],
         [nameLabel.leadingAnchor constraintEqualToAnchor:avatarImageView.trailingAnchor
                                                 constant:12],
         [nameLabel.trailingAnchor constraintEqualToAnchor:devChevron.leadingAnchor
                                                  constant:-12],
         [nameLabel.topAnchor constraintEqualToAnchor:cell.contentView.topAnchor
-                                            constant:16],
+                                            constant:14],
         [usernameLabel.leadingAnchor constraintEqualToAnchor:nameLabel.leadingAnchor],
         [usernameLabel.trailingAnchor constraintEqualToAnchor:devChevron.leadingAnchor
                                                      constant:-12],
         [usernameLabel.topAnchor constraintEqualToAnchor:nameLabel.bottomAnchor
                                                 constant:2],
         [usernameLabel.bottomAnchor constraintEqualToAnchor:cell.contentView.bottomAnchor
-                                                   constant:-16],
+                                                   constant:-14],
         [devChevron.trailingAnchor constraintEqualToAnchor:cell.contentView.trailingAnchor
-                                                  constant:-20],
+                                                   constant:-16],
         [devChevron.centerYAnchor constraintEqualToAnchor:cell.contentView.centerYAnchor],
-        [devChevron.widthAnchor constraintEqualToConstant:18],
-        [devChevron.heightAnchor constraintEqualToConstant:18]
+        [devChevron.widthAnchor constraintEqualToConstant:14],
+        [devChevron.heightAnchor constraintEqualToConstant:14]
     ]];
-    cell.backgroundColor = [Palette currentBackgroundColor];
+    cell.backgroundColor = [Palette currentCardBackgroundColor];
     cell.selectionStyle = UITableViewCellSelectionStyleDefault;
 }
 
@@ -624,8 +772,9 @@
     usernameLabel.textColor = subtitleColor;
     UIImageView* devChevron = [cell.contentView viewWithTag:103];
     devChevron.image = [UIImage tfn_vectorImageNamed:@"chevron_right"
-                                            fitsSize:CGSizeMake(18, 18)
+                                            fitsSize:CGSizeMake(14, 14)
                                            fillColor:subtitleColor];
+    cell.backgroundColor = [Palette currentCardBackgroundColor];
     NSString* avatarURL = developer[@"avatarURL"];
     if (avatarURL.length > 0) {
         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
@@ -640,10 +789,28 @@
     }
 }
 
+
 #pragma mark - UITableViewDelegate
 
 - (void)tableView:(UITableView*)tableView didSelectRowAtIndexPath:(NSIndexPath*)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
+
+    UIImpactFeedbackGenerator* haptic = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleLight];
+    [haptic impactOccurred];
+
+    if (self.isSearching) {
+        NSDictionary* item = self.searchResults[indexPath.row];
+        if ([item[@"type"] isEqualToString:@"category"]) {
+            NSString* action = item[@"action"];
+            SEL selector = NSSelectorFromString(action);
+            if ([self respondsToSelector:selector]) {
+                IMP imp = [self methodForSelector:selector];
+                void (*func)(id, SEL) = (void*)imp;
+                func(self, selector);
+            }
+        }
+        return;
+    }
 
     if (indexPath.section == 0) {
         NSDictionary* sectionData = self.sections[indexPath.row];
@@ -654,6 +821,7 @@
             void (*func)(id, SEL) = (void*)imp;
             func(self, selector);
         }
+
     } else if (indexPath.section == 1) {
         NSDictionary* developer = self.developerCells[indexPath.row];
         [self openTwitterProfile:developer];

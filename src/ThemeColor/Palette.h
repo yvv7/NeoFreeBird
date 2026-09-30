@@ -15,4 +15,15 @@
  */
 + (UIColor*)currentBackgroundColor;
 
+/**
+ * Current primary accent color (Twitter blue, or user-selected theme color).
+ */
++ (UIColor*)currentAccentColor;
+
+/**
+ * Modern card background color for Inset Grouped table cells and modals.
+ */
++ (UIColor*)currentCardBackgroundColor;
+
 @end
+

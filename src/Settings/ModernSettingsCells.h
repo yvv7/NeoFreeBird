@@ -9,6 +9,7 @@
 #import "Core/TwitterChirpFont.h"
 
 @interface ModernSettingsTableViewCell : UITableViewCell
+@property (nonatomic, strong) UIView* iconContainerView;
 @property (nonatomic, strong) UIImageView* iconImageView;
 @property (nonatomic, strong) UILabel* titleLabel;
 @property (nonatomic, strong) UILabel* subtitleLabel;
@@ -16,7 +17,12 @@
 - (void)configureWithTitle:(NSString*)title
                   subtitle:(NSString*)subtitle
                   iconName:(NSString*)iconName;
+- (void)configureWithTitle:(NSString*)title
+                  subtitle:(NSString*)subtitle
+                  iconName:(NSString*)iconName
+                badgeColor:(UIColor*)badgeColor;
 @end
+
 
 @interface ModernSettingsSimpleButtonCell : UITableViewCell
 @property (nonatomic, strong) UILabel* titleLabel;

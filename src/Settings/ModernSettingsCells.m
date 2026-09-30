@@ -23,11 +23,17 @@
 }
 
 - (void)setupViews {
+    self.iconContainerView = [[UIView alloc] init];
+    self.iconContainerView.translatesAutoresizingMaskIntoConstraints = NO;
+    self.iconContainerView.layer.cornerRadius = 8.0;
+    self.iconContainerView.layer.masksToBounds = YES;
+    [self.contentView addSubview:self.iconContainerView];
+
     self.iconImageView = [[UIImageView alloc] init];
     self.iconImageView.translatesAutoresizingMaskIntoConstraints = NO;
     self.iconImageView.contentMode = UIViewContentModeScaleAspectFit;
-    self.iconImageView.tintColor = [UIColor secondaryLabelColor];
-    [self.contentView addSubview:self.iconImageView];
+    self.iconImageView.tintColor = [UIColor whiteColor];
+    [self.iconContainerView addSubview:self.iconImageView];
 
     self.titleLabel = [[UILabel alloc] init];
     self.titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -48,69 +54,83 @@
     self.chevronImageView.contentMode = UIViewContentModeScaleAspectFit;
     [self.contentView addSubview:self.chevronImageView];
 
-    self.backgroundColor = [Palette currentBackgroundColor];
+    self.backgroundColor = [Palette currentCardBackgroundColor];
     self.selectionStyle = UITableViewCellSelectionStyleDefault;
 }
 
 - (void)setupConstraints {
     [NSLayoutConstraint activateConstraints:@[
-        [self.iconImageView.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor
-                                                         constant:20],
-        [self.iconImageView.centerYAnchor constraintEqualToAnchor:self.contentView.centerYAnchor],
-        [self.iconImageView.widthAnchor constraintEqualToConstant:20],
-        [self.iconImageView.heightAnchor constraintEqualToConstant:20],
+        [self.iconContainerView.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor
+                                                             constant:16],
+        [self.iconContainerView.centerYAnchor constraintEqualToAnchor:self.contentView.centerYAnchor],
+        [self.iconContainerView.widthAnchor constraintEqualToConstant:32],
+        [self.iconContainerView.heightAnchor constraintEqualToConstant:32],
 
-        [self.titleLabel.leadingAnchor constraintEqualToAnchor:self.iconImageView.trailingAnchor
-                                                      constant:16],
+        [self.iconImageView.centerXAnchor constraintEqualToAnchor:self.iconContainerView.centerXAnchor],
+        [self.iconImageView.centerYAnchor constraintEqualToAnchor:self.iconContainerView.centerYAnchor],
+        [self.iconImageView.widthAnchor constraintEqualToConstant:18],
+        [self.iconImageView.heightAnchor constraintEqualToConstant:18],
+
+        [self.titleLabel.leadingAnchor constraintEqualToAnchor:self.iconContainerView.trailingAnchor
+                                                      constant:14],
         [self.titleLabel.topAnchor constraintEqualToAnchor:self.contentView.topAnchor
-                                                  constant:16],
+                                                  constant:14],
         [self.titleLabel.trailingAnchor constraintEqualToAnchor:self.chevronImageView.leadingAnchor
-                                                       constant:-16],
+                                                       constant:-12],
 
         [self.subtitleLabel.leadingAnchor constraintEqualToAnchor:self.titleLabel.leadingAnchor],
         [self.subtitleLabel.topAnchor constraintEqualToAnchor:self.titleLabel.bottomAnchor
-                                                     constant:2],
+                                                     constant:3],
         [self.subtitleLabel.trailingAnchor constraintEqualToAnchor:self.titleLabel.trailingAnchor],
         [self.subtitleLabel.bottomAnchor constraintEqualToAnchor:self.contentView.bottomAnchor
-                                                        constant:-16],
+                                                        constant:-14],
 
         [self.chevronImageView.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor
-                                                             constant:-20],
+                                                             constant:-16],
         [self.chevronImageView.centerYAnchor constraintEqualToAnchor:self.contentView.centerYAnchor],
-        [self.chevronImageView.widthAnchor constraintEqualToConstant:18],
-        [self.chevronImageView.heightAnchor constraintEqualToConstant:18]
+        [self.chevronImageView.widthAnchor constraintEqualToConstant:14],
+        [self.chevronImageView.heightAnchor constraintEqualToConstant:14]
     ]];
 }
 
 - (void)configureWithTitle:(NSString*)title
                   subtitle:(NSString*)subtitle
                   iconName:(NSString*)iconName {
+    [self configureWithTitle:title subtitle:subtitle iconName:iconName badgeColor:nil];
+}
+
+- (void)configureWithTitle:(NSString*)title
+                  subtitle:(NSString*)subtitle
+                  iconName:(NSString*)iconName
+                badgeColor:(UIColor*)badgeColor {
     self.titleLabel.text = title;
     self.subtitleLabel.text = subtitle;
     objc_setAssociatedObject(self, @selector(iconName), iconName, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    objc_setAssociatedObject(self, @selector(badgeColor), badgeColor, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     [self updateIconColors];
 }
 
-// Vector images bake in their fill color, so they are re-rendered on every theme change.
 - (void)updateIconColors {
     NSString* iconName = objc_getAssociatedObject(self, @selector(iconName));
-    if (iconName) {
-        Class TAEColorSettingsCls = objc_getClass("TAEColorSettings");
-        id settings = [TAEColorSettingsCls sharedSettings];
-        id currentPalette = [settings currentColorPalette];
-        id colorPalette = [currentPalette colorPalette];
-        UIColor* iconColor = [colorPalette performSelector:@selector(tabBarItemColor)];
-        self.iconImageView.image = [UIImage tfn_vectorImageNamed:iconName
-                                                        fitsSize:CGSizeMake(20, 20)
-                                                       fillColor:iconColor];
+    UIColor* badgeColor = objc_getAssociatedObject(self, @selector(badgeColor));
+    if (!badgeColor) {
+        badgeColor = [Palette currentAccentColor];
     }
+    self.iconContainerView.backgroundColor = badgeColor;
+
+    if (iconName) {
+        self.iconImageView.image = [UIImage tfn_vectorImageNamed:iconName
+                                                        fitsSize:CGSizeMake(18, 18)
+                                                       fillColor:[UIColor whiteColor]];
+    }
+
     Class TAEColorSettingsCls = objc_getClass("TAEColorSettings");
     id settings = [TAEColorSettingsCls sharedSettings];
     id currentPalette = [settings currentColorPalette];
     id colorPalette = [currentPalette colorPalette];
     UIColor* chevronColor = [colorPalette performSelector:@selector(tabBarItemColor)];
     self.chevronImageView.image = [UIImage tfn_vectorImageNamed:@"chevron_right"
-                                                       fitsSize:CGSizeMake(18, 18)
+                                                       fitsSize:CGSizeMake(14, 14)
                                                       fillColor:chevronColor];
 }
 
@@ -125,7 +145,7 @@
 
 - (void)traitCollectionDidChange:(UITraitCollection*)previousTraitCollection {
     [super traitCollectionDidChange:previousTraitCollection];
-    self.backgroundColor = [Palette currentBackgroundColor];
+    self.backgroundColor = [Palette currentCardBackgroundColor];
     [self updateIconColors];
     [self updateSubtitleColor];
     if (previousTraitCollection.preferredContentSizeCategory !=
@@ -163,7 +183,7 @@
     self.chevronImageView.contentMode = UIViewContentModeScaleAspectFit;
     [self.contentView addSubview:self.chevronImageView];
 
-    self.backgroundColor = [Palette currentBackgroundColor];
+    self.backgroundColor = [Palette currentCardBackgroundColor];
     self.selectionStyle = UITableViewCellSelectionStyleDefault;
     [self updateChevronColor];
 }
@@ -171,20 +191,20 @@
 - (void)setupConstraints {
     [NSLayoutConstraint activateConstraints:@[
         [self.titleLabel.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor
-                                                      constant:20],
+                                                      constant:16],
         [self.titleLabel.centerYAnchor constraintEqualToAnchor:self.contentView.centerYAnchor],
         [self.titleLabel.trailingAnchor constraintEqualToAnchor:self.chevronImageView.leadingAnchor
-                                                       constant:-16],
+                                                       constant:-14],
         [self.titleLabel.topAnchor constraintEqualToAnchor:self.contentView.topAnchor
-                                                  constant:16],
+                                                  constant:14],
         [self.titleLabel.bottomAnchor constraintEqualToAnchor:self.contentView.bottomAnchor
-                                                     constant:-16],
+                                                     constant:-14],
 
         [self.chevronImageView.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor
-                                                             constant:-20],
+                                                             constant:-16],
         [self.chevronImageView.centerYAnchor constraintEqualToAnchor:self.contentView.centerYAnchor],
-        [self.chevronImageView.widthAnchor constraintEqualToConstant:18],
-        [self.chevronImageView.heightAnchor constraintEqualToConstant:18]
+        [self.chevronImageView.widthAnchor constraintEqualToConstant:14],
+        [self.chevronImageView.heightAnchor constraintEqualToConstant:14]
     ]];
 }
 
@@ -199,13 +219,13 @@
     id colorPalette = [currentPalette colorPalette];
     UIColor* chevronColor = [colorPalette performSelector:@selector(tabBarItemColor)];
     self.chevronImageView.image = [UIImage tfn_vectorImageNamed:@"chevron_right"
-                                                       fitsSize:CGSizeMake(18, 18)
+                                                       fitsSize:CGSizeMake(14, 14)
                                                       fillColor:chevronColor];
 }
 
 - (void)traitCollectionDidChange:(UITraitCollection*)previousTraitCollection {
     [super traitCollectionDidChange:previousTraitCollection];
-    self.backgroundColor = [Palette currentBackgroundColor];
+    self.backgroundColor = [Palette currentCardBackgroundColor];
     [self updateChevronColor];
     if (previousTraitCollection.preferredContentSizeCategory !=
         self.traitCollection.preferredContentSizeCategory) {
@@ -248,7 +268,7 @@
     self.chevronImageView.contentMode = UIViewContentModeScaleAspectFit;
     [self.contentView addSubview:self.chevronImageView];
 
-    self.backgroundColor = [Palette currentBackgroundColor];
+    self.backgroundColor = [Palette currentCardBackgroundColor];
     self.selectionStyle = UITableViewCellSelectionStyleDefault;
     [self updateChevronColor];
 }
@@ -256,25 +276,25 @@
 - (void)setupConstraints {
     [NSLayoutConstraint activateConstraints:@[
         [self.titleLabel.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor
-                                                      constant:20],
+                                                      constant:16],
         [self.titleLabel.centerYAnchor constraintEqualToAnchor:self.contentView.centerYAnchor],
         [self.titleLabel.topAnchor constraintEqualToAnchor:self.contentView.topAnchor
-                                                  constant:16],
+                                                  constant:14],
         [self.titleLabel.bottomAnchor constraintEqualToAnchor:self.contentView.bottomAnchor
-                                                     constant:-16],
+                                                     constant:-14],
 
         [self.subtitleLabel.leadingAnchor
             constraintGreaterThanOrEqualToAnchor:self.titleLabel.trailingAnchor
-                                        constant:16],
+                                        constant:14],
         [self.subtitleLabel.trailingAnchor constraintEqualToAnchor:self.chevronImageView.leadingAnchor
                                                           constant:-8],
         [self.subtitleLabel.centerYAnchor constraintEqualToAnchor:self.contentView.centerYAnchor],
 
         [self.chevronImageView.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor
-                                                             constant:-20],
+                                                             constant:-16],
         [self.chevronImageView.centerYAnchor constraintEqualToAnchor:self.contentView.centerYAnchor],
-        [self.chevronImageView.widthAnchor constraintEqualToConstant:18],
-        [self.chevronImageView.heightAnchor constraintEqualToConstant:18]
+        [self.chevronImageView.widthAnchor constraintEqualToConstant:14],
+        [self.chevronImageView.heightAnchor constraintEqualToConstant:14]
     ]];
     [self.titleLabel setContentHuggingPriority:UILayoutPriorityDefaultHigh
                                        forAxis:UILayoutConstraintAxisHorizontal];
@@ -296,7 +316,7 @@
     id colorPalette = [currentPalette colorPalette];
     UIColor* chevronColor = [colorPalette performSelector:@selector(tabBarItemColor)];
     self.chevronImageView.image = [UIImage tfn_vectorImageNamed:@"chevron_right"
-                                                       fitsSize:CGSizeMake(18, 18)
+                                                       fitsSize:CGSizeMake(14, 14)
                                                       fillColor:chevronColor];
 }
 
@@ -311,7 +331,7 @@
 
 - (void)traitCollectionDidChange:(UITraitCollection*)previousTraitCollection {
     [super traitCollectionDidChange:previousTraitCollection];
-    self.backgroundColor = [Palette currentBackgroundColor];
+    self.backgroundColor = [Palette currentCardBackgroundColor];
     [self updateChevronColor];
     [self updateSubtitleColor];
     if (previousTraitCollection.preferredContentSizeCategory !=
@@ -331,37 +351,53 @@
     self = [super initWithStyle:style reuseIdentifier:reuseIdentifier];
     if (self) {
         self.selectionStyle = UITableViewCellSelectionStyleNone;
-        self.backgroundColor = [Palette currentBackgroundColor];
+        self.backgroundColor = [Palette currentCardBackgroundColor];
+
         self.titleLabel = [UILabel new];
         self.titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
         [self.contentView addSubview:self.titleLabel];
+
         self.subtitleLabel = [UILabel new];
         self.subtitleLabel.numberOfLines = 0;
         self.subtitleLabel.translatesAutoresizingMaskIntoConstraints = NO;
         [self.contentView addSubview:self.subtitleLabel];
+
         self.toggleSwitch = [UISwitch new];
         self.toggleSwitch.translatesAutoresizingMaskIntoConstraints = NO;
+        self.toggleSwitch.onTintColor = [Palette currentAccentColor];
+        [self.toggleSwitch addTarget:self
+                              action:@selector(nfb_switchValueChanged:)
+                    forControlEvents:UIControlEventValueChanged];
         [self.contentView addSubview:self.toggleSwitch];
+
         [self applyTheme];
+
         [NSLayoutConstraint activateConstraints:@[
             [self.toggleSwitch.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor
-                                                             constant:-20],
+                                                             constant:-16],
+            [self.toggleSwitch.centerYAnchor constraintEqualToAnchor:self.contentView.centerYAnchor],
+
             [self.titleLabel.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor
-                                                          constant:20],
+                                                          constant:16],
             [self.titleLabel.topAnchor constraintEqualToAnchor:self.contentView.topAnchor
-                                                      constant:14],
+                                                      constant:13],
             [self.titleLabel.trailingAnchor constraintEqualToAnchor:self.toggleSwitch.leadingAnchor
-                                                           constant:-16],
-            [self.toggleSwitch.centerYAnchor constraintEqualToAnchor:self.titleLabel.centerYAnchor],
+                                                           constant:-14],
+
             [self.subtitleLabel.leadingAnchor constraintEqualToAnchor:self.titleLabel.leadingAnchor],
             [self.subtitleLabel.trailingAnchor constraintEqualToAnchor:self.titleLabel.trailingAnchor],
             [self.subtitleLabel.topAnchor constraintEqualToAnchor:self.titleLabel.bottomAnchor
-                                                         constant:4],
+                                                         constant:3],
             [self.subtitleLabel.bottomAnchor constraintEqualToAnchor:self.contentView.bottomAnchor
-                                                            constant:-14]
+                                                            constant:-13]
         ]];
     }
     return self;
+}
+
+- (void)nfb_switchValueChanged:(UISwitch*)sender {
+    UISelectionFeedbackGenerator* feedback = [[UISelectionFeedbackGenerator alloc] init];
+    [feedback selectionChanged];
 }
 
 - (void)configureWithTitle:(NSString*)title subtitle:(NSString*)subtitle {
@@ -382,6 +418,8 @@
     id colorPalette = [[settings currentColorPalette] colorPalette];
     self.titleLabel.textColor = [colorPalette performSelector:@selector(textColor)];
     self.subtitleLabel.textColor = [colorPalette performSelector:@selector(tabBarItemColor)];
+    self.toggleSwitch.onTintColor = [Palette currentAccentColor];
+    self.backgroundColor = [Palette currentCardBackgroundColor];
 }
 
 - (void)traitCollectionDidChange:(UITraitCollection*)previousTraitCollection {
@@ -390,3 +428,4 @@
 }
 
 @end
+

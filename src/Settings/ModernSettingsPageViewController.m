@@ -75,17 +75,24 @@
 - (void)setupTable {
     self.view.backgroundColor = [Palette currentBackgroundColor];
     self.tableView = [[UITableView alloc] initWithFrame:self.view.bounds
-                                                  style:UITableViewStyleGrouped];
+                                                  style:UITableViewStyleInsetGrouped];
     self.tableView.autoresizingMask =
         UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     self.tableView.dataSource = self;
     self.tableView.delegate = self;
     self.tableView.backgroundColor = [Palette currentBackgroundColor];
-    self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
+    self.tableView.separatorStyle = UITableViewCellSeparatorStyleSingleLine;
+    self.tableView.separatorColor = [UIColor colorWithDynamicProvider:^UIColor * _Nonnull(UITraitCollection * _Nonnull traitCollection) {
+        if (traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark) {
+            return [UIColor colorWithWhite:1.0 alpha:0.08];
+        }
+        return [UIColor colorWithWhite:0.0 alpha:0.08];
+    }];
+    self.tableView.separatorInset = UIEdgeInsetsMake(0, 16, 0, 0);
     self.tableView.rowHeight = UITableViewAutomaticDimension;
     self.tableView.showsVerticalScrollIndicator = NO;
     self.tableView.showsHorizontalScrollIndicator = NO;
-    self.tableView.estimatedRowHeight = 80;
+    self.tableView.estimatedRowHeight = 70;
     [self.tableView registerClass:[ModernSettingsToggleCell class]
            forCellReuseIdentifier:@"ToggleCell"];
     [self.tableView registerClass:[ModernSettingsTableViewCell class]
@@ -94,6 +101,7 @@
            forCellReuseIdentifier:@"CompactButtonCell"];
     [self.view addSubview:self.tableView];
 }
+
 
 #pragma mark - Visible Toggles
 
@@ -193,11 +201,13 @@
         BOOL isEnabled = [[[NSUserDefaults standardUserDefaults] objectForKey:key]
                               ?: toggleData[@"default"] boolValue];
         cell.toggleSwitch.on = isEnabled;
+        cell.toggleSwitch.onTintColor = [Palette currentAccentColor];
         objc_setAssociatedObject(cell.toggleSwitch, @"prefKey", key, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         [cell addTarget:self
                       action:@selector(switchChanged:)
             forControlEvents:UIControlEventValueChanged];
         return cell;
+
     }
 }
 
@@ -224,7 +234,9 @@
 
 - (UIView*)tableView:(UITableView*)tableView viewForHeaderInSection:(NSInteger)section {
     UIView* header = [[UIView alloc] initWithFrame:CGRectMake(0, 0, tableView.frame.size.width, 0)];
+    header.backgroundColor = [UIColor clearColor];
     UILabel* label = [[UILabel alloc] init];
+
     label.translatesAutoresizingMaskIntoConstraints = NO;
     label.text = [[BHTBundle sharedBundle] localizedStringForKey:[self pageSubtitleKey]];
     label.numberOfLines = 0;

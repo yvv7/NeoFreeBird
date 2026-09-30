@@ -4,6 +4,7 @@
 //
 
 #import "Core/NFBProgressPill.h"
+#import "ThemeColor/Palette.h"
 
 @interface NFBProgressPill ()
 @property (nonatomic, strong) UIView* pill;
@@ -37,52 +38,56 @@
         return;
     }
 
-    UIView* container = [[UIView alloc] init];
-    container.backgroundColor = [UIColor colorWithWhite:0.15 alpha:0.92];
-    container.layer.cornerRadius = 18;
+    UIBlurEffect* blurEffect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterialDark];
+    UIVisualEffectView* container = [[UIVisualEffectView alloc] initWithEffect:blurEffect];
+    container.layer.cornerRadius = 20;
     container.layer.masksToBounds = YES;
+    container.layer.borderWidth = 0.5;
+    container.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.18].CGColor;
     container.alpha = 0;
+    container.transform = CGAffineTransformMakeTranslation(0, -32);
     self.pill = container;
 
     UILabel* titleLbl = [[UILabel alloc] init];
     titleLbl.text = title;
-    titleLbl.textColor = UIColor.whiteColor;
+    titleLbl.textColor = [UIColor whiteColor];
     titleLbl.font = [UIFont systemFontOfSize:14 weight:UIFontWeightSemibold];
     titleLbl.textAlignment = NSTextAlignmentCenter;
     self.titleLabel = titleLbl;
-    [container addSubview:titleLbl];
+    [container.contentView addSubview:titleLbl];
 
     UIProgressView* progressBar = [[UIProgressView alloc] initWithProgressViewStyle:UIProgressViewStyleDefault];
-    progressBar.progressTintColor = UIColor.systemBlueColor;
-    progressBar.trackTintColor = [UIColor colorWithWhite:1 alpha:0.2];
+    progressBar.progressTintColor = [Palette currentAccentColor];
+    progressBar.trackTintColor = [UIColor colorWithWhite:1.0 alpha:0.15];
     progressBar.progress = 0;
     self.bar = progressBar;
-    [container addSubview:progressBar];
+    [container.contentView addSubview:progressBar];
 
     UILabel* detailLbl = [[UILabel alloc] init];
     detailLbl.text = @"0%";
-    detailLbl.textColor = [UIColor colorWithWhite:1 alpha:0.7];
-    detailLbl.font = [UIFont systemFontOfSize:12 weight:UIFontWeightRegular];
+    detailLbl.textColor = [UIColor colorWithWhite:1.0 alpha:0.75];
+    detailLbl.font = [UIFont monospacedDigitSystemFontOfSize:12 weight:UIFontWeightMedium];
     detailLbl.textAlignment = NSTextAlignmentCenter;
     self.detailLabel = detailLbl;
-    [container addSubview:detailLbl];
+    [container.contentView addSubview:detailLbl];
 
     for (UIView* v in @[titleLbl, progressBar, detailLbl]) {
         v.translatesAutoresizingMaskIntoConstraints = NO;
     }
     [NSLayoutConstraint activateConstraints:@[
-        [titleLbl.topAnchor constraintEqualToAnchor:container.topAnchor constant:10],
-        [titleLbl.leadingAnchor constraintEqualToAnchor:container.leadingAnchor constant:20],
-        [titleLbl.trailingAnchor constraintEqualToAnchor:container.trailingAnchor constant:-20],
+        [titleLbl.topAnchor constraintEqualToAnchor:container.contentView.topAnchor constant:12],
+        [titleLbl.leadingAnchor constraintEqualToAnchor:container.contentView.leadingAnchor constant:20],
+        [titleLbl.trailingAnchor constraintEqualToAnchor:container.contentView.trailingAnchor constant:-20],
 
         [progressBar.topAnchor constraintEqualToAnchor:titleLbl.bottomAnchor constant:8],
-        [progressBar.leadingAnchor constraintEqualToAnchor:container.leadingAnchor constant:20],
-        [progressBar.trailingAnchor constraintEqualToAnchor:container.trailingAnchor constant:-20],
+        [progressBar.leadingAnchor constraintEqualToAnchor:container.contentView.leadingAnchor constant:20],
+        [progressBar.trailingAnchor constraintEqualToAnchor:container.contentView.trailingAnchor constant:-20],
+        [progressBar.heightAnchor constraintEqualToConstant:4],
 
         [detailLbl.topAnchor constraintEqualToAnchor:progressBar.bottomAnchor constant:6],
-        [detailLbl.leadingAnchor constraintEqualToAnchor:container.leadingAnchor constant:20],
-        [detailLbl.trailingAnchor constraintEqualToAnchor:container.trailingAnchor constant:-20],
-        [detailLbl.bottomAnchor constraintEqualToAnchor:container.bottomAnchor constant:-10],
+        [detailLbl.leadingAnchor constraintEqualToAnchor:container.contentView.leadingAnchor constant:20],
+        [detailLbl.trailingAnchor constraintEqualToAnchor:container.contentView.trailingAnchor constant:-20],
+        [detailLbl.bottomAnchor constraintEqualToAnchor:container.contentView.bottomAnchor constant:-12],
     ]];
 
     [window addSubview:container];
@@ -93,10 +98,16 @@
         [container.widthAnchor constraintEqualToConstant:280],
     ]];
 
-    [UIView animateWithDuration:0.25
+    [UIView animateWithDuration:0.45
+                          delay:0
+         usingSpringWithDamping:0.75
+          initialSpringVelocity:0.6
+                        options:UIViewAnimationOptionCurveEaseOut
                      animations:^{
-                         container.alpha = 1;
-                     }];
+                         container.alpha = 1.0;
+                         container.transform = CGAffineTransformIdentity;
+                     }
+                     completion:nil];
 }
 
 - (void)setProgress:(CGFloat)progress detail:(NSString* _Nullable)detail {
@@ -112,6 +123,9 @@
 
 - (void)dismissWithMessage:(NSString*)message {
     dispatch_async(dispatch_get_main_queue(), ^{
+        UINotificationFeedbackGenerator* haptic = [[UINotificationFeedbackGenerator alloc] init];
+        [haptic notificationOccurred:UINotificationFeedbackTypeSuccess];
+
         self.titleLabel.text = [NSString stringWithFormat:@"✓ %@", message];
         self.bar.hidden = YES;
         self.detailLabel.hidden = YES;
@@ -124,14 +138,20 @@
 
 - (void)dismiss {
     dispatch_async(dispatch_get_main_queue(), ^{
-        [UIView animateWithDuration:0.25
-            animations:^{
-                self.pill.alpha = 0;
-            }
-            completion:^(__unused BOOL finished) {
-                [self.pill removeFromSuperview];
-            }];
+        [UIView animateWithDuration:0.3
+                              delay:0
+             usingSpringWithDamping:0.9
+              initialSpringVelocity:0.3
+                            options:UIViewAnimationOptionCurveEaseIn
+                         animations:^{
+                             self.pill.alpha = 0;
+                             self.pill.transform = CGAffineTransformMakeTranslation(0, -20);
+                         }
+                         completion:^(__unused BOOL finished) {
+                             [self.pill removeFromSuperview];
+                         }];
     });
 }
 
 @end
+
