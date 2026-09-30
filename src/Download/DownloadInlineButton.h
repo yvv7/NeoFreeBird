@@ -30,6 +30,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)downloadImage:(UIImage*)image fileNameBase:(NSString* _Nullable)base;
 - (void)downloadImages:(NSArray<UIImage*>*)images fileNameBase:(NSString* _Nullable)base;
 
+// Download images from URLs (from the tweet 3-dots menu).
+- (void)downloadImageURLs:(NSArray<NSURL*>*)urls fileNameBase:(NSString* _Nullable)base;
+
+// Get a smart filename base for a status (username_date).
+- (NSString* _Nullable)fileBaseForStatus:(id)status;
+
 @end
 
 NS_ASSUME_NONNULL_END

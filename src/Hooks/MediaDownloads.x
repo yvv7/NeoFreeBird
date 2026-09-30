@@ -404,15 +404,21 @@ static void SetVoiceDownloadLongPressRecognizer(UIView* view,
 
     NSArray* mediaEntities = [[status entities] media];
     BOOL hasVideo = NO;
-    // mediaType 2 = GIF, 3 = video
+    BOOL hasPhoto = NO;
+    // mediaType 1 = photo, 2 = GIF, 3 = video
     for (TFSTwitterEntityMedia* media in mediaEntities) {
-        if ([media isKindOfClass:%c(TFSTwitterEntityMedia)] &&
-            (media.mediaType == 2 || media.mediaType == 3)) {
-            hasVideo = YES;
-            break;
+        if ([media isKindOfClass:%c(TFSTwitterEntityMedia)]) {
+            if (media.mediaType == 2 || media.mediaType == 3) {
+                hasVideo = YES;
+            } else if (media.mediaType == 1) {
+                hasPhoto = YES;
+            }
         }
     }
-    if (!hasVideo) {
+    // Videos always show; photos only when the toggle is on.
+    BOOL showMenu = hasVideo ||
+        (hasPhoto && [BHTSettings boolForKey:@"download_pictures_from_menu"]);
+    if (!showMenu) {
         return origItems;
     }
 
@@ -427,8 +433,39 @@ static void SetVoiceDownloadLongPressRecognizer(UIView* view,
         actionItemWithTitle:[[BHTBundle sharedBundle] localizedStringForKey:@"DOWNLOAD_VIDEOS_TITLE"]
                   imageName:@"arrow_down_circle_stroke"
                      action:^{
-                         [downloader presentDownloadOptionsForMediaEntities:mediaEntities
-                                                                     status:status];
+                         if (hasVideo) {
+                             [downloader presentDownloadOptionsForMediaEntities:mediaEntities
+                                                                         status:status];
+                         } else if (hasPhoto) {
+                             // Photos only: download the image URLs directly.
+                             NSMutableArray<NSURL*>* photoURLs = [NSMutableArray new];
+                             for (TFSTwitterEntityMedia* media in mediaEntities) {
+                                 if (media.mediaType == 1 && media.mediaURL.length) {
+                                     // Get the full-size URL (replace :small with :orig).
+                                     NSString* urlStr = [media.mediaURL
+                                         stringByReplacingOccurrencesOfString:@":small"
+                                                                   withString:@":orig"];
+                                     urlStr = [urlStr
+                                         stringByReplacingOccurrencesOfString:@":medium"
+                                                                   withString:@":orig"];
+                                     urlStr = [urlStr
+                                         stringByReplacingOccurrencesOfString:@":large"
+                                                                   withString:@":orig"];
+                                     NSURL* url = [NSURL URLWithString:urlStr];
+                                     if (url) {
+                                         [photoURLs addObject:url];
+                                     }
+                                 }
+                             }
+                             if (photoURLs.count > 0) {
+                                 NSString* base = nil;
+                                 if ([BHTSettings boolForKey:@"download_smart_filenames"]) {
+                                     base = [downloader fileBaseForStatus:status];
+                                 }
+                                 [downloader downloadImageURLs:photoURLs
+                                                  fileNameBase:base];
+                             }
+                         }
                      }];
 
     NSMutableArray* newItems = origItems ? [origItems mutableCopy] : [NSMutableArray array];

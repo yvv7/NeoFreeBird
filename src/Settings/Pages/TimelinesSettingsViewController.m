@@ -6,7 +6,6 @@
 //
 
 #import "Settings/Pages/TimelinesSettingsViewController.h"
-#import "Settings/Pages/CountryFilterViewController.h"
 #import "Headers/TWHeaders.h"
 
 extern void applyHideCustomTimelinesSetting(void);
@@ -26,10 +25,5 @@ extern void applyHideCustomTimelinesSetting(void);
 }
 
 #pragma mark - Sub-page Navigation
-
-- (void)showCountryFilterViewController:(NSDictionary*)sender {
-    CountryFilterViewController* vc = [[CountryFilterViewController alloc] init];
-    [self.navigationController pushViewController:vc animated:YES];
-}
 
 @end

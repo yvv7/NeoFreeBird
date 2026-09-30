@@ -248,6 +248,8 @@
 "DOWNLOAD_AUDIO_OPTION_DETAIL" = "Adds a “Download audio” item that saves just the audio track.";
 "DOWNLOAD_SMART_FILENAMES_TITLE" = "Smart filenames";
 "DOWNLOAD_SMART_FILENAMES_DETAIL" = "Names files @user_date instead of random names.";
+"DOWNLOAD_PICTURES_FROM_MENU_TITLE" = "Picture downloads in tweet menu";
+"DOWNLOAD_PICTURES_FROM_MENU_DETAIL" = "Adds picture download to the tweet ... menu, not just the fullscreen button.";
 "DOWNLOAD_QUEUE_TITLE" = "Background download queue";
 "DOWNLOAD_QUEUE_DETAIL" = "Queues downloads to run one after another instead of blocking.";
 "DOWNLOAD_TO_FILES_TITLE" = "Save to Files app";

@@ -11,6 +11,7 @@
 #import <objc/runtime.h>
 #import "Core/BHTBundle.h"
 #import "Core/BHTSettings.h"
+#import "Core/NFBToast.h"
 
 #pragma mark - Helpers
 static UIWindow* KeyWindow(void) {
@@ -891,6 +892,58 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
     });
 }
 
+// Download images from URLs: fetch each, save to temp, deliver.
+- (void)downloadImageURLs:(NSArray<NSURL*>*)urls
+            fileNameBase:(NSString* _Nullable)base {
+    if (urls.count == 0) {
+        return;
+    }
+    NFBLog(@"download: fetching %lu image URLs", (unsigned long)urls.count);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSMutableArray<NSString*>* paths = [NSMutableArray new];
+        for (NSUInteger i = 0; i < urls.count; i++) {
+            NSURL* url = urls[i];
+            NSData* data = [NSData dataWithContentsOfURL:url];
+            if (!data) {
+                NFBLog(@"download: failed to fetch %@", url.absoluteString);
+                continue;
+            }
+            // Detect extension from URL or data.
+            NSString* ext = [url.pathExtension lowercaseString];
+            if (![@[@"jpg", @"jpeg", @"png", @"gif", @"heic", @"webp"] containsObject:ext]) {
+                ext = @"jpg";
+            }
+            NSString* name = base.length
+                                 ? (urls.count > 1
+                                        ? [NSString stringWithFormat:@"%@_%lu", base,
+                                                               (unsigned long)(i + 1)]
+                                        : base)
+                                 : NSUUID.UUID.UUIDString;
+            NSString* tmpPath = [NSTemporaryDirectory()
+                stringByAppendingPathComponent:
+                    [name stringByAppendingPathExtension:ext]];
+            if ([data writeToFile:tmpPath atomically:YES]) {
+                [paths addObject:tmpPath];
+            }
+        }
+        NFBLog(@"download: %lu images fetched", (unsigned long)paths.count);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            NSMutableArray<NSDictionary*>* items = [NSMutableArray new];
+            for (NSString* path in paths) {
+                [items addObject:@{
+                    @"url": [NSURL fileURLWithPath:path],
+                    @"ext": [path pathExtension] ?: @"jpg"
+                }];
+            }
+            [self deliverFiles:items];
+        });
+    });
+}
+
+- (NSString* _Nullable)fileBaseForStatus:(id)status {
+    return FileBaseNameForStatus(status);
+}
+
 #pragma mark - Download job engine
 
 // Next output base name: smart "user_date" (with _2, _3… suffixes) when
@@ -1186,6 +1239,10 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
                 [BHTManager save:url];
             }
         }
+        // Pill confirmation at the top.
+        NSString* msg = items.count == 1 ? @"Saved to Photos" :
+            [NSString stringWithFormat:@"%lu saved to Photos", (unsigned long)items.count];
+        [NFBToast show:msg];
         return;
     }
     [BHTManager showSaveVCForURLs:files];

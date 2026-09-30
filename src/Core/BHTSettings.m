@@ -100,21 +100,7 @@ static NSDictionary<NSString*, NSDictionary*>* BHTSettingsPages(void) {
                     @{@"key": @"hide_verified_tweets",
                       @"default": @NO},
                     @{@"key": @"restore_refresh_sounds",
-                      @"default": @YES},
-                    @{@"key": @"country_filter",
-                      @"default": @NO},
-                    @{@"type": @"button",
-                      @"parentKey": @"country_filter",
-                      @"titleKey": @"COUNTRY_FILTER_OPTION_TITLE",
-                      @"action": @"showCountryFilterViewController:"},
-                    @{@"key": @"country_filter_strict",
-                      @"default": @NO,
-                      @"titleKey": @"COUNTRY_FILTER_STRICT_TITLE",
-                      @"detailKey": @"COUNTRY_FILTER_STRICT_DETAIL",
-                      @"parentKey": @"country_filter"},
-                    @{@"key": @"country_filter_protect_following",
-                      @"default": @YES,
-                      @"parentKey": @"country_filter"}
+                      @"default": @YES}
                 ]
             },
             @"grok": @{
@@ -177,6 +163,12 @@ static NSDictionary<NSString*, NSDictionary*>* BHTSettingsPages(void) {
                         @"key": @"download_smart_filenames",
                         @"parentKey": @"download_videos",
                         @"default": @YES,
+                        @"type": @"toggle"
+                    },
+                    @{
+                        @"key": @"download_pictures_from_menu",
+                        @"parentKey": @"download_videos",
+                        @"default": @NO,
                         @"type": @"toggle"
                     },
                     @{

@@ -5,7 +5,6 @@
 //
 
 #import "HookHelpers.h"
-#import "Filter/CountryFilter.h"
 #import <string.h>
 
 // MARK: - Hide custom timelines
@@ -373,15 +372,6 @@ static BOOL ShouldHideTimelineItem(id item, BHTimelineFilterContext* context) {
         return YES;
     }
 
-    if (context.countryFilterEnabled &&
-        [CountryFilter shouldHideViewModel:viewModel
-                           hiddenCountries:context.hiddenCountries
-                             hiddenRegions:context.hiddenRegions
-                             exemptHandles:context.exemptHandles
-                          protectFollowing:context.protectFollowing]) {
-        return YES;
-    }
-
     if (context.hidePrompts && [className isEqualToString:@"TwitterURT.URTTimelinePromptViewModel"]) {
         return YES;
     }
@@ -539,23 +529,7 @@ static NSSet<NSNumber*>* ConversationAuthorRepliedToUserIDs(NSArray* sections,
                                    @"_TtC32TwitterHomeFeatureImplementation35HomeTimelineContainerViewController")
             : YES;
     if (!homeTimelineClass) {
-        NFBLog(@"country filter: home class nil, using fallback scope");
-    }
-    NFBLog(@"country filter: enabled=%d inHome=%d inConv=%d inProfile=%d inSearch=%d",
-           [CountryFilter isEnabled], inHomeTimeline, context.inConversation,
-           context.inProfile, context.inSearch);
-    context.countryFilterEnabled =
-        [CountryFilter isEnabled] && inHomeTimeline && !context.inConversation &&
-        !context.inProfile && !context.inSearch;
-    if (context.countryFilterEnabled) {
-        [CountryFilter loadDataIfNeeded];
-        context.hiddenCountries = [CountryFilter hiddenCountries];
-        context.hiddenRegions = [CountryFilter hiddenRegions];
-        context.exemptHandles = [CountryFilter exemptHandles];
-        context.protectFollowing = [CountryFilter protectFollowing];
-        NFBLog(@"country filter: active (countries=%lu regions=%lu)",
-              (unsigned long)context.hiddenCountries.count,
-              (unsigned long)context.hiddenRegions.count);
+        NFBLog(@"timeline: home class nil, using fallback scope");
     }
 
     return context;
