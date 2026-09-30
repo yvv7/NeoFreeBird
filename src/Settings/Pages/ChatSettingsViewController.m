@@ -17,9 +17,4 @@
     return @"chat";
 }
 
-- (void)switchChanged:(UISwitch*)sender {
-    [super switchChanged:sender];
-    NSString* key = objc_getAssociatedObject(sender, @"prefKey");
-}
-
 @end

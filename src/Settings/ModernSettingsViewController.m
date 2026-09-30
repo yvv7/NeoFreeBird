@@ -8,7 +8,9 @@
 #import "Settings/ModernSettingsViewController.h"
 #import "Core/BHTBundle.h"
 #import "Core/BHTManager.h"
+#import "Core/BHTSettings.h"
 #import "Settings/ModernSettingsCells.h"
+
 #import "Settings/ModernSettingsPageViewController.h"
 #import "Settings/Pages/AppearanceSettingsViewController.h"
 #import "Settings/Pages/ChatSettingsViewController.h"
