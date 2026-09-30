@@ -1170,10 +1170,21 @@ static NSURL* _Nullable BestDownloadURLForMedia(TFSTwitterEntityMedia* media) {
     }
     if ([BHTSettings boolForKey:@"direct_save"] && !hasAudioOnly) {
         for (NSDictionary* item in items) {
-            if ([item[@"ext"] isEqualToString:@"gif"])
-                [BHTManager saveGIF:item[@"url"]];
-            else
-                [BHTManager save:item[@"url"]];
+            NSString* ext = [item[@"ext"] lowercaseString];
+            NSURL* url = item[@"url"];
+            if ([ext isEqualToString:@"jpg"] ||
+                [ext isEqualToString:@"jpeg"] || [ext isEqualToString:@"png"] ||
+                [ext isEqualToString:@"heic"] || [ext isEqualToString:@"webp"] ||
+                [ext isEqualToString:@"gif"]) {
+                // Images use the image PhotoKit API, not the video one.
+                [[PHPhotoLibrary sharedPhotoLibrary]
+                    performChangesAndWait:^{
+                        [PHAssetChangeRequest creationRequestForAssetFromImageAtFileURL:url];
+                    }
+                                    error:nil];
+            } else {
+                [BHTManager save:url];
+            }
         }
         return;
     }
